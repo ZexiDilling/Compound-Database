@@ -1,0 +1,9 @@
+rdkit
+pandas
+datetime
+numpy
+configparser
+scipy
+openpyxl
+PySimpleGUI
+matplotlib
