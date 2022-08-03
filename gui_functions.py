@@ -64,11 +64,11 @@ def _compound_list(mp_amount, transferee_volume, ignore_active, sub_search, smil
         plated_compounds = [compounds for compounds in fd.get_all_compounds_ids(1, "compound_mp")]
 
     # Gets a list of compounds, based on search criteria
-    compound_list, liquid_warning_list = fd.list_limiter(sample_amount, source_table, transferee_volume,
+    items = fd.list_limiter(sample_amount, source_table, transferee_volume,
                                                                      sub_search, sub_search_methode, smiles, threshold,
                                                                      ignore_active, plated_compounds)
 
-    return compound_list, liquid_warning_list
+    return items
 
 
 def table_update_tree(mp_amount, transferee_volume, ignore_active, sub_search, smiles, sub_search_methode,
@@ -102,29 +102,32 @@ def table_update_tree(mp_amount, transferee_volume, ignore_active, sub_search, s
     temp_all_data = _compound_list(mp_amount, transferee_volume, ignore_active, sub_search, smiles, sub_search_methode,
                               threshold, source_table)
 
-    for índex, values in enumerate(temp_all_data):
-        all_data[all_data_headlines[índex]] = values
+    if not temp_all_data:
+        return None
+    else:
+        for índex, values in enumerate(temp_all_data):
+            all_data[all_data_headlines[índex]] = values
 
-    rows = fd.list_to_rows(all_data["compound_list"])
+        rows = fd.list_to_rows(all_data["compound_list"])
 
-    counter = 0
-    treedata = sg.TreeData()
+        counter = 0
+        treedata = sg.TreeData()
 
-    for compound_id in rows:
+        for compound_id in rows:
 
-        temp_list = []
-        for key in rows[compound_id]:
-            if key == "png":
-                temp_png = rows[compound_id][key]
+            temp_list = []
+            for key in rows[compound_id]:
+                if key == "png":
+                    temp_png = rows[compound_id][key]
+                else:
+                    temp_list.append(rows[compound_id][key])
+            counter += 1
+            if counter < 4000:
+                treedata.Insert("", compound_id, "", temp_list, icon=temp_png)
             else:
-                temp_list.append(rows[compound_id][key])
-        counter += 1
-        if counter < 4000:
-            treedata.Insert("", compound_id, "", temp_list, icon=temp_png)
-        else:
-            treedata.Insert("", compound_id, "", temp_list, icon="")
+                treedata.Insert("", compound_id, "", temp_list, icon="")
 
-    return treedata, all_data, rows, counter
+        return treedata, all_data, rows, counter
 
 
 def compound_export(folder, compound_list):
@@ -137,7 +140,7 @@ def compound_counter():
     return len(fd.get_all_compounds_ids(0, "compound_main"))
 
 
-def update_database(data, table, file_type=None):
+def update_database(data, table, file_type):
     """
     Update the database with data. Both for adding data to the different tables, but updating tables with new values
     :param data: Output file from the plate_butler system, tube files for the comPOUND freezer, or other data.
@@ -261,15 +264,26 @@ def draw_plate(config, graph, plate_type, well_dict, archive_plate, gui_tab, sam
     return well_dict, min_x, min_y, max_x, max_y
 
 
-def bio_data(config, folder, well_states_report, plate_analysis_dict, plate_layout, z_prime_calc, heatmap_colours):
-    bioa = BIOAnalyser(config, well_states_report, plate_analysis_dict, heatmap_colours)
-    file_list = get_file_list(folder)
+# def bio_data(config, folder, well_states_report, plate_analysis_dict, plate_layout, z_prime_calc, heatmap_colours):
+#     bioa = BIOAnalyser(config, well_states_report, plate_analysis_dict, heatmap_colours)
+#     file_list = get_file_list(folder)
+#
+#     all_plates_data = {}
+#     for files in file_list:
+#         all_data, well_row_col, well_type, barcode = original_data_dict(files, plate_layout)
+#         if not all_data:
+#             return False
+#
+#         all_plates_data[barcode] = bioa.bio_data_controller(files, plate_layout, all_data, well_row_col, well_type
+#                                                             , z_prime_calc)
+#
+#     return True, all_plates_data
 
-    # print(well_states_report)
-    # print(plate_analysis_dict)
-    # print(plate_layout)
-    # print(z_prime_calc)
-    # print(heatmap_colours)
+
+def bio_data(config, folder, plate_layout, bio_plate_report_setup):
+    # needs to reformat plate-layout to use well ID instead of numbers...
+    bioa = BIOAnalyser(config, bio_plate_report_setup)
+    file_list = get_file_list(folder)
 
     all_plates_data = {}
     for files in file_list:
@@ -277,13 +291,15 @@ def bio_data(config, folder, well_states_report, plate_analysis_dict, plate_layo
         if not all_data:
             return False
 
-        # file_name = files.split("-")
-        all_plates_data[barcode] = bioa.bio_data_controller(files, plate_layout, all_data, well_row_col, well_type
-                                                                  , z_prime_calc)
+        all_plates_data[barcode] = bioa.bio_data_controller(files, plate_layout, all_data, well_row_col, well_type)
+
+    return True, all_plates_data
 
 
-def bio_full_report(analyse_method, all_plate_data, pora_threshold, output_folder, plate_layout):
-    bio_full_report_writer(analyse_method, all_plate_data, pora_threshold, output_folder, plate_layout)
+def bio_full_report(analyse_method, all_plate_data, final_report_setup, output_folder, final_report_name):
+
+    output_file = f"{output_folder}/{final_report_name}.xlsx"
+    bio_full_report_writer(analyse_method, all_plate_data, output_file, final_report_setup)
 
 
 def mp_production_2d_to_pb_simulate(folder_output, barcodes_2d, mp_name, trans_vol):

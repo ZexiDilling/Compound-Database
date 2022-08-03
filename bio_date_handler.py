@@ -11,7 +11,7 @@ from bio_data_functions import *
 
 
 class BIOAnalyser:
-    def __init__(self, config, well_states_report, plate_analysis_dict, heatmap_colours):
+    def __init__(self, config, bio_plate_report_setup):
         """
         :param config: the config file for the program
         :type config: configparser.ConfigParser
@@ -22,10 +22,14 @@ class BIOAnalyser:
         """
 
         self.config = config
-        self.plate_analysis = plate_analysis_dict
         self.cal_stuff = {"avg": mean, "stdev": stdev}
-        self.well_states_report = well_states_report
-        self.heatmap_colours = heatmap_colours
+        self.plate_analysis = bio_plate_report_setup["plate_analysis_dict"]
+        self.well_states_report = bio_plate_report_setup["well_states_report"]
+        self.heatmap_colours = bio_plate_report_setup["heatmap_colours"]
+        self.z_prime_calc = bio_plate_report_setup["z_prime_calc"]
+        # missing :
+        self.pora_threshold = bio_plate_report_setup["pora_threshold"]
+        # and state
 
     def __str__(self):
         """
@@ -49,7 +53,7 @@ class BIOAnalyser:
 
         return pw_dict
 
-    def _data_converter(self, all_data, well_type, z_prime_calc):
+    def _data_converter(self, all_data, well_type):
         """
         convert raw data in the analysed data
         :return: all_data, well_row, well_col, pw_dict
@@ -62,8 +66,8 @@ class BIOAnalyser:
                 self._well_calculations(well_type, all_data, methode)
 
         all_data["calculations"]["other_data"] = {}
-        if z_prime_calc:
-            all_data["calculations"]["other_data"]["z-Prime"] = z_prime(all_data, "normalised")
+        if self.z_prime_calc:
+            all_data["calculations"]["other_data"]["z_prime"] = z_prime(all_data, "normalised")
 
         return all_data, pw_dict
 
@@ -109,30 +113,10 @@ class BIOAnalyser:
         :param methode: the analysed method
         :return:counter_row
         """
-
         temp_row = counter_row
-        init_row_start = init_row
-        for counter in self.plate["well_layout"]:
-            if methode == "original":
-                state = self.plate["well_layout"][counter]["state"]
-                colour = self.config["plate_colouring"][state]
-                cell_color = colors.cnames[colour]
-                cell_color = cell_color.replace("#", "")
-                temp_cell = translate_wells_to_cells[self.plate["well_layout"][counter]["well_id"]]
-                ws[temp_cell].fill = PatternFill("solid", fgColor=cell_color)
         for state in temp_dict["plates"][methode]:
             temp_col = init_col
             if state != "wells":
-                if methode == "original":
-                    if init_row_start == init_row:
-                        ws[ex_cell(init_row + 1, free_col)] = "well state"
-                        ws[ex_cell(init_row + 1, free_col + 1)] = "colour coding"
-                        ws[ex_cell(init_row + 1, free_col)].font = Font(b=True)
-                        ws[ex_cell(init_row + 1, free_col + 1)].font = Font(b=True)
-                    ws[ex_cell(init_row + 2, free_col)] = state
-                    ws[ex_cell(init_row + 2, free_col + 1)] = self.config["plate_colouring"][state]
-                    init_row += 1
-
                 for calc in temp_dict["calculations"][methode][state]:
                     if counter_row == temp_row:
                         ws[ex_cell(counter_row, temp_col + 1)] = calc
@@ -189,9 +173,16 @@ class BIOAnalyser:
         counter_row = self._cal_info(ws, translate_wells_to_cells, init_row, init_col, free_col, counter_row, temp_dict,
                                      methode)
 
+        # colour wells depending on what state the wells are (sample, blank, min, max...) and add a reading guide.
+        if self.plate_analysis[methode]["state_mapping"]:
+            state_mapping(self.config, ws, translate_wells_to_cells, self.plate, init_row, free_col, temp_dict, methode)
+
         # colour in the heat map, if sets to active. Can set for each method
         if self.plate_analysis[methode]["heatmap"]:
             heatmap(self.config, ws, pw_dict, translate_wells_to_cells, self.heatmap_colours)
+
+        if self.plate_analysis[methode]["Hit_Mapping"]:
+            hit_mapping(ws, temp_dict, self.pora_threshold, methode, translate_wells_to_cells)
 
         counter_row += 1
         return counter_row
@@ -276,13 +267,13 @@ class BIOAnalyser:
         counter_row = 0
 
         # sends each plate-analysed-type into the excel file
-        for plates in all_data["plates"]:
-            counter_row = self._write_plate(ws_data, counter_row, all_data, plates, well_row_col, pw_dict)
+        for methode in all_data["plates"]:
+            counter_row = self._write_plate(ws_data, counter_row, all_data, methode, well_row_col, pw_dict)
         self._report_writer_controller(wb, all_data)
 
         wb.save(self.ex_file)
 
-    def bio_data_controller(self, ex_file, plate_layout, all_data, well_row_col, well_type, z_prime_calc):
+    def bio_data_controller(self, ex_file, plate_layout, all_data, well_row_col, well_type):
         """
         the control modul for the bio analysing
         :return: all_data
@@ -290,7 +281,7 @@ class BIOAnalyser:
         self.ex_file = ex_file
         self.plate = plate_layout
 
-        all_data, pw_dict = self._data_converter(all_data, well_type, z_prime_calc)
+        all_data, pw_dict = self._data_converter(all_data, well_type)
         self._excel_controller(all_data, well_row_col, pw_dict)
 
         return all_data
@@ -299,7 +290,7 @@ class BIOAnalyser:
 
 if __name__ == "__main__":
     file = "Data_analysis-MTase1-Epigenetic_library_HYCPK5448.xlsx"
-    folder = "C:/Users/Charlie/PycharmProjects/structure_search/Bio Data/test"
+    folder = "C:/Users/Charlie/PycharmProjects/structure_search/Bio Data/test_single"
     config = configparser.ConfigParser()
     config.read("config.ini")
     full_file = f"{folder}/{file}"
@@ -310,12 +301,28 @@ if __name__ == "__main__":
         plate_list = []
         archive_plates_dict = {}
     plate = archive_plates_dict[plate_list[3]]
-    well_states_report = {
-        "empty": False, "max": False, "sample": True, "minimum": False
-    }
-    plate_analysis_dict = {"original": {"used": True, "methode": org, "heatmap": False},
-         "normalised": {"used": True, "methode": norm, "heatmap": True},
-         "pora": {"used": True, "methode": pora, "heatmap": True}}
+    bio_plate_report_setup = {
+        "well_states_report": {'sample': True, 'blank': False, 'max': False, 'minimum': False,
+                               'positive': False, 'negative': False, 'empty': False},
+        "plate_analysis_dict": {"original": {"used": True, "methode": org,
+                                             "state_mapping": True, "heatmap": False, "Hit_Mapping": False},
+                                "normalised": {"used": True, "methode": norm,
+                                               "state_mapping": False, "heatmap": True, "Hit_Mapping": False},
+                                "pora": {"used": True, "methode": pora,
+                                         "state_mapping": False, "heatmap": False, "Hit_Mapping": True}},
+        "z_prime_calc": True,
+        "heatmap_colours": {'start': 'light red', 'mid': 'white', 'end': 'light green'},
+        "pora_threshold": {"low": {"min": -200,
+                                   "max": 0},
+                           "mid": {"min": 0,
+                                   "max": 30},
+                           "high": {"min": 120,
+                                    "max": 200},
+                           "colour": {"low": "green",
+                                      "mid": "yellow",
+                                      "high": "blue"}}
 
-    bio_a = BIOAnalyser(config, well_states_report, plate_analysis_dict)
-    # bio_a.bio_data_controller(full_file, plate)
+    }
+
+    bio_a = BIOAnalyser(config, bio_plate_report_setup)
+    bio_a.bio_data_controller(full_file, plate)

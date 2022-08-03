@@ -4,6 +4,7 @@ from openpyxl.styles import PatternFill, Font
 from openpyxl import load_workbook, Workbook
 import pandas as pd
 import re
+from matplotlib import colors
 
 from info import numb2alpha
 
@@ -49,11 +50,44 @@ def pora(all_data, well):
                 all_data["calculations"]["normalised"]["max"]["avg"])
 
 
+def pora_internal(all_data, well):
+    """
+    percentage of remaining activity calculation based on the avg of the max of normalised data
+    :param all_data: all the data
+    :param well: witch well is being calculated
+    :return: the result of the PORA (percentage of remaining activity)
+    """
+    return ((100 * all_data["plates"]["normalised"]["wells"][well]) /
+                all_data["calculations"]["original"]["max"]["avg"])
+
+
 def z_prime(all_data, method):
     return 1 - ((3 * (all_data["calculations"][method]["max"]["stdev"] +
                 (all_data["calculations"][method]["minimum"]["stdev"]))) /
                 abs(all_data["calculations"][method]["max"]["avg"] +
                 (all_data["calculations"][method]["minimum"]["avg"])))
+
+
+def state_mapping(config, ws, translate_wells_to_cells, plate, init_row, free_col, temp_dict, methode):
+
+    init_row_start = init_row
+    for counter in plate["well_layout"]:
+        state = plate["well_layout"][counter]["state"]
+        colour = config["plate_colouring"][state]
+        cell_color = colors.cnames[colour]
+        cell_color = cell_color.replace("#", "")
+        temp_cell = translate_wells_to_cells[plate["well_layout"][counter]["well_id"]]
+        ws[temp_cell].fill = PatternFill("solid", fgColor=cell_color)
+    for state in temp_dict["plates"][methode]:
+        if state != "wells":
+            if init_row_start == init_row:
+                ws[ex_cell(init_row + 1, free_col)] = "well state"
+                ws[ex_cell(init_row + 1, free_col + 1)] = "colour coding"
+                ws[ex_cell(init_row + 1, free_col)].font = Font(b=True)
+                ws[ex_cell(init_row + 1, free_col + 1)].font = Font(b=True)
+            ws[ex_cell(init_row + 2, free_col)] = state
+            ws[ex_cell(init_row + 2, free_col + 1)] = config["plate_colouring"][state]
+            init_row += 1
 
 
 def heatmap(config, ws, pw_dict, translate_wells_to_cells, heatmap_colours):
@@ -87,6 +121,18 @@ def heatmap(config, ws, pw_dict, translate_wells_to_cells, heatmap_colours):
     #                                              end_type="max",
     #                                              end_color=config["colours to hex"][heatmap_colours["end"]]))
 
+
+def hit_mapping(ws, temp_dict, pora_threshold, methode, translate_wells_to_cells):
+    for wells in translate_wells_to_cells:
+        for split in pora_threshold:
+            if split != "colour":
+                if float(pora_threshold[split]["min"]) < temp_dict["plates"][methode]["wells"][wells] < \
+                                            float(pora_threshold[split]["max"]):
+                    temp_colour = pora_threshold["colour"][split]
+                    cell_color = colors.cnames[temp_colour]
+                    cell_color = cell_color.replace("#", "")
+                    temp_cell = translate_wells_to_cells[wells]
+                    ws[temp_cell].fill = PatternFill("solid", fgColor=cell_color)
 
 def well_row_col_type(plate_layout):
     well_type = {}
@@ -190,17 +236,21 @@ def _cal_writer_final_report(barcode, ws_report, all_data, init_row, report_outp
                                            value=all_data["calculations"][plate_analysed][state][calc])
                             row_counter += 1
         else:
-            if report_output["zprime"]:
+            if report_output["z_prime"]:
                 ws_report.cell(column=indent_col, row=row_counter,
                                value="z-Prime").font = Font(b=True)
-                ws_report.cell(column=indent_col + 2, row=row_counter,
-                               value=all_data["calculations"][plate_analysed]["z-Prime"])
+                try:
+                    ws_report.cell(column=indent_col + 2, row=row_counter,
+                                   value=all_data["calculations"][plate_analysed]["z_prime"])
+                except KeyError:
+                    ws_report.cell(column=indent_col + 2, row=row_counter,
+                                   value="Z-Prime is not calculated for the plates")
                 row_counter += 1
             row_counter += 1
     return ws_report, row_counter
 
 
-def _well_writer_final_report(ws_report, hits, report_setup, init_row, pora_threshold):
+def _well_writer_final_report(ws_report, hits, final_report_setup, init_row):
     indent_col = 6
     row_counter = init_row
 
@@ -210,15 +260,17 @@ def _well_writer_final_report(ws_report, hits, report_setup, init_row, pora_thre
         row_counter += 1
 
         for method in hits[barcode]:
-            if report_setup["methods"][method]:
+            if final_report_setup["methods"][method]:
                 # writes method
                 ws_report.cell(column=indent_col, row=row_counter, value=method).font = Font(b=True)
                 row_counter += 1
                 for split in hits[barcode][method]:
                     ws_report.cell(column=indent_col, row=row_counter, value=split).font = Font(b=True)
-                    ws_report.cell(column=indent_col+1, row=row_counter, value=pora_threshold[split]["min"]).font = \
+                    ws_report.cell(column=indent_col+1, row=row_counter,
+                                   value=final_report_setup["pora_threshold"][split]["min"]).font = \
                         Font(underline="single")
-                    ws_report.cell(column=indent_col+2, row=row_counter, value=pora_threshold[split]["max"]).font = \
+                    ws_report.cell(column=indent_col+2, row=row_counter,
+                                   value=final_report_setup["pora_threshold"][split]["max"]).font = \
                         Font(underline="single")
                     row_counter += 1
                     for well in hits[barcode][method][split]:
@@ -230,14 +282,15 @@ def _well_writer_final_report(ws_report, hits, report_setup, init_row, pora_thre
         row_counter = init_row
 
 
-def bio_full_report_writer(analyse_method, all_plate_data, pora_threshold, output_file, final_report_setup):
+def bio_full_report_writer(analyse_method, all_plate_data, output_file, final_report_setup):
     wb = Workbook()
     ws_report = wb.active
     ws_report.title = "Full report"
     init_row = 2
     row = init_row
     for barcode in all_plate_data:
-        ws_report, row_counter = _cal_writer_final_report(barcode, ws_report, all_plate_data[barcode], row, final_report_setup["calc"])
+        ws_report, row_counter = _cal_writer_final_report(barcode, ws_report, all_plate_data[barcode], row,
+                                                          final_report_setup["calc"])
         row = row_counter
 
     if analyse_method == "single point":
@@ -249,13 +302,14 @@ def bio_full_report_writer(analyse_method, all_plate_data, pora_threshold, outpu
                     temp_hits[barcode][method] = {"low": {}, "mid": {}, "high": {}}
                     for well in all_plate_data[barcode]["plates"][method]["wells"]:
                         if well in all_plate_data[barcode]["plates"][method]["sample"]:
-                            for split in pora_threshold:
+                            for split in final_report_setup["pora_threshold"]:
                                 temp_well_value = all_plate_data[barcode]["plates"][method]["wells"][well]
                                 if float(final_report_setup["pora_threshold"][split]["min"]) < float(temp_well_value) < \
                                         float(final_report_setup["pora_threshold"][split]["max"]):
                                     temp_hits[barcode][method][split][well] = temp_well_value
 
-
+        _well_writer_final_report(ws_report, temp_hits, final_report_setup, init_row)
+        wb.save(output_file)
 
 
         # temp_hits = {}
@@ -272,8 +326,7 @@ def bio_full_report_writer(analyse_method, all_plate_data, pora_threshold, outpu
         #                                 float(pora_threshold[split]["max"]):
         #                             temp_hits[barcode][method][split][well] = temp_well_value
 
-    _well_writer_final_report(ws_report, temp_hits, final_report_setup, init_row, pora_threshold)
-    wb.save(output_file)
+
 
 
 

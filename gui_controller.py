@@ -2,6 +2,7 @@ import copy
 from gui_layout import GUILayout
 from gui_settings_control import GUISettingsController
 from gui_functions import *
+from bio_data_functions import org, norm, pora, pora_internal
 from json_handler import dict_reader, dict_writer
 import configparser
 
@@ -23,6 +24,8 @@ def main(config):
 
     #   WINDOW 1 - BIO  #
     graph_bio = window["-BIO_CANVAS-"]
+    bio_import_folder = None
+    bio_export_folder = None
     bio_final_report_setup = {
         "methods": {"original": False, "normalised": False, "pora": True},
         "analyse": {"sample": True, "minimum": False, "max": False, "empty": False, "negative control": False,
@@ -33,10 +36,49 @@ def main(config):
                                 "negative control": False, "positive control": False, "blank": False},
                  "pora": {"overview": True, "sample": True, "minimum": False, "max": False, "empty": False,
                           "negative control": False, "positive control": False, "blank": False},
-                 "zprime": True},
+                 "z_prime": True},
         "pora_threshold": {"low": {"min": -200, "max": 0},
                            "mid": {"min": 0, "max": 30},
                            "high": {"min": 120, "max": 200}}}
+    bio_plate_report_setup = {
+        "well_states_report": {'sample': True, 'blank': False, 'max': False, 'minimum': False,
+                               'positive': False, 'negative': False, 'empty': False},
+        "plate_calc_dict": {
+            "original": {"use": True, "avg": True, "stdev": True, "State":
+                {"sample": True, "minimum": True, "max": True, "empty": True, "negative": True, "positive": True,
+                 "blank": True}},
+            "normalised": {"use": True, "avg": True, "stdev": True, "State":
+                {"sample": True, "minimum": True, "max": True, "empty": True, "negative": True, "positive": True,
+                 "blank": True}},
+            "pora": {"use": True, "avg": True, "stdev": True, "State":
+                {"sample": True, "minimum": True, "max": True, "empty": True, "negative": True, "positive": True,
+                 "blank": True}},
+            "pora_internal": {"use": True, "avg": True, "stdev": True, "State":
+                {"sample": True, "minimum": True, "max": True, "empty": True, "negative": True, "positive": True,
+                 "blank": True}},
+        },
+        "plate_analysis_dict": {"original": {"used": True, "methode": org,
+                                             "state_mapping": True, "heatmap": False, "Hit_Mapping": False},
+                                "normalised": {"used": True, "methode": norm,
+                                               "state_mapping": False, "heatmap": True, "Hit_Mapping": False},
+                                "pora": {"used": True, "methode": pora,
+                                         "state_mapping": False, "heatmap": False, "Hit_Mapping": True},
+                                "pora_internal": {"used": True, "methode": pora_internal,
+                                                  "state_mapping": False, "heatmap": False, "Hit_Mapping": True}
+                                },
+        "z_prime_calc": True,
+        "heatmap_colours": {'start': 'light red', 'mid': 'white', 'end': 'light green'},
+        "pora_threshold": {"low": {"min": -200,
+                                    "max": 0},
+                            "mid": {"min": 0,
+                                    "max": 30},
+                            "high": {"min": 120,
+                                     "max": 200},
+                            "colour": {"low": "green",
+                                       "mid": "yellow",
+                                       "high": "blue"}
+                            }
+    }
 
     #   WINDOW 1 - PLATE LAYOUT #
     graph_plate = window["-CANVAS-"]
@@ -108,49 +150,48 @@ def main(config):
                 draw_plate(config, graph_bio, plate_size, well_dict, archive, gui_tab, sample_type)
 
         if event == "-EXPORT_BIO-":
-            if not values["-BIO_IMPORT_FOLDER-"]:
-                sg.popup_error("Please choose a folder")
-            elif not values["-BIO_PLATE_LAYOUT-"]:
+            if not values["-BIO_PLATE_LAYOUT-"]:
                 sg.popup_error("Please choose a plate layout")
+            elif not values["-BIO_IMPORT_FOLDER-"]:
+                sg.popup_error("Please choose an import folder")
+            elif values["-BIO_COMBINED_REPORT-"] and not values["-BIO_EXPORT_FOLDER-"]:
+                sg.popup_error("Please choose an export folder")
+            elif values["-BIO_COMBINED_REPORT-"] and not values["-FINAL_BIO_NAME-"]:
+                sg.popup_error("Please choose an Report name")
+            # Missing setting move moving files after analyse is done.
             # elif not values["-BIO_ANALYSE_TYPE-"]:
             #     sg.popup_error("Please choose an analyse type")
             else:
-                folder = values["-BIO_IMPORT_FOLDER-"]
-                well_states_report = {
-                    "sample": values["-BIO_SAMPLE-"],
-                    "blank": values["-BIO_MIN-"],
-                    "max": values["-BIO_MAX-"],
-                    "minimum": values["-BIO_EMPTY-"],
-                    "positive": values["-BIO_NEG_C-"],
-                    "negative": values["-BIO_POS_C-"],
-                    "empty": values["-BIO_BLANK-"]
-                }
-                plate_analysis_dict = {
-                    "original": {"used": True, "methode": bio_data_functions.org, "heatmap": False},
-                    "normalised": {"used": True, "methode": bio_data_functions.norm, "heatmap": values["-BIO_HEATMAP-"]},
-                    "pora": {"used": True, "methode": bio_data_functions.pora, "heatmap": values["-BIO_HEATMAP-"]}}
-
+                bio_import_folder = values["-BIO_IMPORT_FOLDER-"]
                 plate_layout = archive_plates_dict[values["-BIO_PLATE_LAYOUT-"]]
-                z_prime_calc = values["-BIO_Z-PRIME-"]
+
+                final_report_name = values["-FINAL_BIO_NAME-"]
+                if not bio_export_folder:
+                    bio_export_folder = values["-BIO_EXPORT_FOLDER-"]
 
                 # missing implimentations: "
-                heatmap_colours = {"start": values["-HEAT_START-"],
-                                   "mid": values["-HEAT_MID-"],
-                                   "end": values["-HEAT_END-"]}
                 state_colours = values["-BIO_STATE-"]
-                export_folder = values["-BIO_EXPORT_FOLDER-"]
 
-                worked, all_plates_data = bio_data(config, folder, well_states_report, plate_analysis_dict, plate_layout,
-                                                   z_prime_calc, heatmap_colours)
+                # worked, all_plates_data = bio_data(config, bio_import_folder, well_states_report, plate_analysis_dict,
+                #                                    plate_layout, z_prime_calc, heatmap_colours)
 
-                if "-BIO_COMBINED_REPORT-":
-                    ...
+                worked, all_plates_data = bio_data(config, bio_import_folder, plate_layout, bio_plate_report_setup)
+
+                if values["-BIO_COMBINED_REPORT-"]:
+                    bio_full_report("single point", all_plates_data, bio_final_report_setup, bio_export_folder,
+                                    final_report_name)
 
                 if worked:
                     sg.popup("Done")
 
+        if event == "-BIO_COMBINED_REPORT-":
+            if not values["-FINAL_BIO_NAME-"]:
+                final_report_name = sg.popup_get_text("Final Report Name?")
+                window["-FINAL_BIO_NAME-"].update(value=final_report_name)
+
+
         if event == "-BIO_REPORT_SETTINGS-":
-            bio_final_report_setup = gsc.main_settings_controller()
+            bio_final_report_setup, bio_plate_report_setup = gsc.main_settings_controller()
 
         if event == "-BIO_ANALYSE_TYPE-":
             sg.popup("This functions does nothing ATM ")
@@ -345,12 +386,15 @@ def main(config):
         if event == "-UPDATE_MP-":
             if not values["-UPDATE_FOLDER-"]:
                 sg.popup_error("Please select a folder containing MotherPlate data")
-            update_database(values["-UPDATE_FOLDER-"], "compound_mp")
+            else:
+                update_database(values["-UPDATE_FOLDER-"], "compound_mp", "pb_mp_output")
+                sg.popup("Done")
 
         if event == "-UPDATE_DP-":
             if not values["-UPDATE_FOLDER-"]:
                 sg.popup_error("Please select a folder containing AssayPlate data")
-            update_database(values["-UPDATE_FOLDER-"], "compound_dp")
+            else:
+                update_database(values["-UPDATE_FOLDER-"], "compound_dp")
 
         if event == "-UPDATE_PURITY-":
             if not values["-UPDATE_FOLDER-"]:
@@ -366,7 +410,7 @@ def main(config):
         if event == "-UPDATE_BIO-":
             if not values["-UPDATE_FOLDER-"]:
                 sg.popup_error("Please select a folder containing bio data")
-            sg.PopupError("this is not working atm")
+            sg.popup_error("this is not working atm")
 
         if event == "-UPDATE_AUTO-":
             sg.PopupOKCancel("this is not working atm")
@@ -391,7 +435,7 @@ def main(config):
                 window["-SIM_MP_FRAME-"].update(visible=False)
                 window["-SIM_DP_FRAME-"].update(visible=True)
 
-        if event == "-SIM_BUTTON-":
+        if event == "-SIM_RUN-":
             if values["-SIM_INPUT_EQ-"] == "comPOUND":
                 if not values["-SIM_INPUT_COMPOUND_FILE-"]:
                     sg.popup_error("Missing Compound file")
@@ -419,6 +463,9 @@ def main(config):
                     sg.popup_error("Missing PlateButler file")
                 else:
                     sg.Popup("not working atm")
+
+            else:
+                print(values["-SIM_INPUT_EQ-"])
 
         ###     TAB GROUP EVENTS    ###
         if event == "-TABLE_TAB_GRP-":
@@ -465,15 +512,18 @@ def main(config):
                     threshold = float(values["-THRESHOLD-"])
                     source_table = table
 
-                    treedata, all_data, compound_data, counter = table_update_tree(mp_amount, transferee_volume,
+                    table_data = table_update_tree(mp_amount, transferee_volume,
                                                                                    ignore_active, sub_search, smiles,
                                                                                    sub_search_methode, threshold,
                                                                                    source_table)
-                    window['-TREE_DB-'].image_dict.clear()
-                    window["-TREE_DB-"].update(treedata)
-                    window["-C_TABLE_COUNT-"].update(f"Compounds: {counter}")
-                    window["-C_TABLE_REFRESH-"].update(text="Clear Table")
-
+                    if table_data:
+                        treedata, all_data, compound_data, counter = table_data
+                        window['-TREE_DB-'].image_dict.clear()
+                        window["-TREE_DB-"].update(treedata)
+                        window["-C_TABLE_COUNT-"].update(f"Compounds: {counter}")
+                        window["-C_TABLE_REFRESH-"].update(text="Clear Table")
+                    else:
+                        sg.popup_error("All compounds are in MotherPlates")
                 except ValueError:
                     sg.Popup("Fill in missing data")
 

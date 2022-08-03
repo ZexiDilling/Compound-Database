@@ -121,7 +121,8 @@ class GUILayout:
                 [sg.Checkbox("Negative Control", key="-BIO_NEG_C-"), sg.Checkbox("Positive Control", key="-BIO_POS_C-"),
                  sg.Checkbox("Blank", key="-BIO_BLANK-"), sg.Checkbox("Z prime", key="-BIO_Z-PRIME-")],
                 [sg.T("Data for combined report")],
-                [sg.Checkbox("combined report? ", key="-BIO_COMBINED_REPORT-", default=False)],
+                [sg.Checkbox("combined report? ", key="-BIO_COMBINED_REPORT-", default=False, enable_events=True)],
+                [sg.InputText(key="-FINAL_BIO_NAME-")],
                 [sg.B("Report setting", key="-BIO_REPORT_SETTINGS-")]
             ])
         ]])
@@ -274,10 +275,10 @@ class GUILayout:
                 [sg.Text("Input folder containing the 2D barcode txt file's (; separated)"),
                  sg.FolderBrowse(key="-SIM_INPUT_MP_FILE-", target="-SIM_MP_TARGET-")],
                 [sg.T(key="-SIM_MP_TARGET-")],
-                [sg.Text("MotherPlate initials"),
-                 sg.InputText(key="-SIM_MP_NAME-")],
-                [sg.Text("Volume"),
-                 sg.InputText(key="-SIM_MP_VOL-")]
+                [sg.Text("MotherPlate initials", size=15),
+                 sg.InputText(key="-SIM_MP_NAME-", size=10)],
+                [sg.Text("Volume", size=15),
+                 sg.InputText(key="-SIM_MP_VOL-", size=10)]
             ])
         ]], visible=False, key="-SIM_MP_FRAME-")
 
