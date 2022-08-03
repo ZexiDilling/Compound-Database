@@ -10,8 +10,8 @@ class GUILayout:
     @staticmethod
     def menu_top():
         menu_top_def = [['File', ['Open', 'Save', 'Exit', ]],
-                    ['Edit', ['Paste', ['Special', 'Normal', ], 'Undo'], ],
-                    ['Help', 'About...'], ]
+                        ['Edit', ['Paste', ['Special', 'Normal', ], 'Undo'], ],
+                        ['Help', 'About...'], ]
         layout = [[sg.Menu(menu_top_def)]]
         return layout
 
@@ -36,7 +36,8 @@ class GUILayout:
             sg.Column([
                 [sg.DropDown(values=origin, default_value=origin[0], key="-SEARCH_ORIGIN-", enable_events=True),
                  sg.DropDown(values=company, default_value=company[0], key="-SEARCH_WHO-")],
-                [sg.FolderBrowse(key="-OUTPUT_FILE-", target="-OUTPUT_FOLDER-", initial_folder="output_files")],
+                [sg.T("Out put folder"),
+                 sg.FolderBrowse(key="-OUTPUT_FILE-", target="-OUTPUT_FOLDER-", initial_folder="output_files")],
                 [sg.Text(key="-OUTPUT_FOLDER-", size=75)],
                 [sg.Checkbox(text="Ignore plated compounds?", key="-IGNORE_ACTIVE-")],
                 [sg.Text("Amount of Plates", size=self.standard_size),
@@ -47,6 +48,7 @@ class GUILayout:
                                                           default_value=plate_production[0])]
             ])
         ]])
+
         col_sub_search = sg.Frame("Sub Search", [[
             sg.Column([
                 [sg.Checkbox(text="Sub Search?", key="-SUB_SEARCH-")],
@@ -92,7 +94,7 @@ class GUILayout:
                              size=self.standard_size)],
                 [sg.Text("Analyse method", size=self.standard_size),
                  sg.DropDown(analyse_type, key="-BIO_ANALYSE_TYPE-", size=self.standard_size, enable_events=True)],
-                [sg.Text("sample type", size=self.standard_size),
+                [sg.Text("sample type (Not working)", size=self.standard_size),
                  sg.DropDown(sample_type, key="-BIO_SAMPLE_TYPE-", default_value=sample_type[0],
                              size=self.standard_size, enable_events=True)],
                 [sg.Checkbox("heatmap", key="-BIO_HEATMAP-")],
@@ -105,8 +107,7 @@ class GUILayout:
                 [sg.Text("End Colour:", size=self.standard_size),
                  sg.DropDown(colours, key="-HEAT_END-", size=self.standard_size,
                              default_value=colours[4])],
-                [sg.Checkbox("State colours", key="-BIO_STATE-"),
-                 sg.Checkbox("Z prime", key="-BIO_Z-PRIME-")],
+                [sg.Checkbox("State colours", key="-BIO_STATE-")],
                 [sg.Button("Export", key="-EXPORT_BIO-"), sg.Checkbox("Compound related data?",
                                                                       key="-BIO_COMPOUND_DATA-")]
             ])
@@ -114,10 +115,14 @@ class GUILayout:
 
         col_report = sg.Frame("Report setup", [[
             sg.Column([
+                [sg.T("Data for each excel file:")],
                 [sg.Checkbox("Sample", key="-BIO_SAMPLE-", default=True), sg.Checkbox("Minimum", key="-BIO_MIN-"),
                  sg.Checkbox("Max", key="-BIO_MAX-"), sg.Checkbox("Empty", key="-BIO_EMPTY-")],
                 [sg.Checkbox("Negative Control", key="-BIO_NEG_C-"), sg.Checkbox("Positive Control", key="-BIO_POS_C-"),
-                 sg.Checkbox("Blank", key="-BIO_BLANK-")]
+                 sg.Checkbox("Blank", key="-BIO_BLANK-"), sg.Checkbox("Z prime", key="-BIO_Z-PRIME-")],
+                [sg.T("Data for combined report")],
+                [sg.Checkbox("combined report? ", key="-BIO_COMBINED_REPORT-", default=False)],
+                [sg.B("Report setting", key="-BIO_REPORT_SETTINGS-")]
             ])
         ]])
 
@@ -259,7 +264,7 @@ class GUILayout:
         compound_col = sg.Frame("2D files (Compound -> 2D barcode)", [[
             sg.Column([
                 [sg.Text("Input folder containing the compound txt file's"),
-                 sg.FolderBrowse(key="-SIM_INPUT_COMPOUND_FILE-", target="-SIM_COMPOUND_TARGET-")],
+                 sg.FileBrowse(key="-SIM_INPUT_COMPOUND_FILE-", target="-SIM_COMPOUND_TARGET-")],
                 [sg.T(key="-SIM_COMPOUND_TARGET-")],
             ])
         ]], visible=True, key="-SIM_COMPOUND_FRAME-")
@@ -335,7 +340,7 @@ class GUILayout:
             [raw_table_col],
             [sg.Button("Export", key="-C_TABLE_EXPORT-", size=self.standard_size),
              sg.Button("Refresh", key="-C_TABLE_REFRESH-", size=self.standard_size),
-             sg.DropDown(values=tables, default_value=tables[0], key="-C_TABLE_FILE_TYPE-"),
+             # sg.DropDown(values=tables, default_value=tables[0], key="-C_TABLE_FILE_TYPE-"),
              sg.Text(text="Compounds: 0", key="-C_TABLE_COUNT-")]
         ]
         return layout
@@ -351,7 +356,7 @@ class GUILayout:
 
         tab_group_1_list = [tab_1_search, tab_1_bio_data, tab_1_purity_data, tab_1_plate_layout, tab_1_add, tab_1_sim]
 
-        return [[sg.TabGroup([tab_group_1_list])]]
+        return [[sg.TabGroup([tab_group_1_list], selected_background_color="purple")]]
 
     def layout_tab_group_2(self):
         layout_2_info = self.setup_2_info()
@@ -368,7 +373,7 @@ class GUILayout:
 
         tab_group_2_list = [tab_2_info, tab_2_bio_bio, tab_2_purity_purity]
 
-        return [[sg.TabGroup([tab_group_2_list])]]
+        return [[sg.TabGroup([tab_group_2_list], selected_background_color="purple")]]
 
     def setup_experiment_table(self):
 
@@ -390,10 +395,9 @@ class GUILayout:
         tab_plate_table = sg.Tab("Plate tables", layout_plate_table)
 
         tab_group_tables = [tab_table_compound, tab_experiment_table, tab_plate_table]
-        return [[sg.TabGroup([tab_group_tables], key="-TABLE_TAB_GRP-", enable_events=True)]]
+        return [[sg.TabGroup([tab_group_tables], key="-TABLE_TAB_GRP-", enable_events=True, selected_background_color="purple")]]
 
     def full_layout(self):
-
         sg.theme(self.config["GUI"]["theme"])
         window_size = (int(self.config["GUI"]["size_x"]), int(self.config["GUI"]["size_y"]))
         x_size = window_size[0]/3

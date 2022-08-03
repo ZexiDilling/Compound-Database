@@ -197,8 +197,7 @@ class BIOAnalyser:
         return counter_row
 
     @staticmethod
-    def _cal_writer(wb, all_data, init_row):
-        ws_report = wb.create_sheet("Report")
+    def cal_writer(ws_report, all_data, init_row):
         indent_col = 2
         row_counter = init_row
         for plate_analysed in all_data["calculations"]:
@@ -259,7 +258,8 @@ class BIOAnalyser:
         """
 
         init_row = 2
-        ws_report = self._cal_writer(wb, all_data, init_row)
+        ws_report = wb.create_sheet("Report")
+        ws_report = self.cal_writer(ws_report, all_data, init_row)
         self._well_writer(ws_report, all_data, init_row)
 
     def _excel_controller(self, all_data, well_row_col, pw_dict):
@@ -294,6 +294,7 @@ class BIOAnalyser:
         self._excel_controller(all_data, well_row_col, pw_dict)
 
         return all_data
+
 
 
 if __name__ == "__main__":

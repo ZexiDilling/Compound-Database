@@ -1,6 +1,7 @@
 import PySimpleGUI
 from openpyxl.formatting.rule import ColorScaleRule
-from openpyxl import load_workbook
+from openpyxl.styles import PatternFill, Font
+from openpyxl import load_workbook, Workbook
 import pandas as pd
 import re
 
@@ -44,8 +45,6 @@ def pora(all_data, well):
     :param well: witch well is being calculated
     :return: the result of the PORA (percentage of remaining activity)
     """
-    print(well)
-    print(all_data["calculations"]["normalised"]["max"]["avg"])
     return ((100 * all_data["plates"]["normalised"]["wells"][well]) /
                 all_data["calculations"]["normalised"]["max"]["avg"])
 
@@ -92,7 +91,6 @@ def heatmap(config, ws, pw_dict, translate_wells_to_cells, heatmap_colours):
 def well_row_col_type(plate_layout):
     well_type = {}
     well_col_row = {"well_col": [], "well_row": []}
-    print(plate_layout)
     for counter in plate_layout["well_layout"]:
         for keys in plate_layout["well_layout"][counter]:
             if keys == "well_id":
@@ -122,6 +120,10 @@ def original_data_dict(file, plate_layout):
     n_rows = len(well_col_row["well_row"])
     for row_index, row in enumerate(ws.values):
         for index_row, value in enumerate(row):
+
+            if value == "Name" and row[1]:
+                barcode = row[1]
+
             if value == "<>":
                 skipped_rows = row_index
             if value == "I":
@@ -161,7 +163,119 @@ def original_data_dict(file, plate_layout):
             except KeyError:
                 all_data["plates"]["original"]["wells"][well] = 1
 
-    return all_data, well_col_row, well_type
+    return all_data, well_col_row, well_type, barcode
+
+
+def _cal_writer_final_report(barcode, ws_report, all_data, init_row, report_output):
+    indent_col = 2
+    row_counter = init_row
+
+    ws_report.cell(column=-1 + indent_col, row=row_counter, value=barcode).font = Font(b=True, underline="single")
+    row_counter += 1
+    for plate_analysed in all_data["calculations"]:
+        # Removing other calculations than avg and stdev
+        if plate_analysed != "other_data":
+            # Checks to see if the overview of avg and stv should be included
+            if report_output[plate_analysed]["overview"]:
+                # Writes the analysed method in, if the overview is set to true
+                ws_report.cell(column=-1 + indent_col, row=row_counter, value=plate_analysed).font = Font(b=True)
+                # row_counter += 1
+                for state in all_data["calculations"][plate_analysed]:
+                    if report_output[plate_analysed][state]:
+                        ws_report.cell(column=indent_col, row=row_counter, value=state).font = Font(b=True)
+                        for calc in all_data["calculations"][plate_analysed][state]:
+                            # Writes avg and stdev including values
+                            ws_report.cell(column=indent_col + 1, row=row_counter, value=calc)
+                            ws_report.cell(column=indent_col + 2, row=row_counter,
+                                           value=all_data["calculations"][plate_analysed][state][calc])
+                            row_counter += 1
+        else:
+            if report_output["zprime"]:
+                ws_report.cell(column=indent_col, row=row_counter,
+                               value="z-Prime").font = Font(b=True)
+                ws_report.cell(column=indent_col + 2, row=row_counter,
+                               value=all_data["calculations"][plate_analysed]["z-Prime"])
+                row_counter += 1
+            row_counter += 1
+    return ws_report, row_counter
+
+
+def _well_writer_final_report(ws_report, hits, report_setup, init_row, pora_threshold):
+    indent_col = 6
+    row_counter = init_row
+
+    for barcode in hits:
+        # Writes headline for data inserts to see where the data is coming from
+        ws_report.cell(column=indent_col, row=row_counter, value=barcode).font = Font(b=True, underline="single")
+        row_counter += 1
+
+        for method in hits[barcode]:
+            if report_setup["methods"][method]:
+                # writes method
+                ws_report.cell(column=indent_col, row=row_counter, value=method).font = Font(b=True)
+                row_counter += 1
+                for split in hits[barcode][method]:
+                    ws_report.cell(column=indent_col, row=row_counter, value=split).font = Font(b=True)
+                    ws_report.cell(column=indent_col+1, row=row_counter, value=pora_threshold[split]["min"]).font = \
+                        Font(underline="single")
+                    ws_report.cell(column=indent_col+2, row=row_counter, value=pora_threshold[split]["max"]).font = \
+                        Font(underline="single")
+                    row_counter += 1
+                    for well in hits[barcode][method][split]:
+                        ws_report.cell(column=indent_col + 1, row=row_counter, value=well)
+                        ws_report.cell(column=indent_col + 2, row=row_counter,
+                                       value=hits[barcode][method][split][well])
+                        row_counter += 1
+        indent_col += 4
+        row_counter = init_row
+
+
+def bio_full_report_writer(analyse_method, all_plate_data, pora_threshold, output_file, final_report_setup):
+    wb = Workbook()
+    ws_report = wb.active
+    ws_report.title = "Full report"
+    init_row = 2
+    row = init_row
+    for barcode in all_plate_data:
+        ws_report, row_counter = _cal_writer_final_report(barcode, ws_report, all_plate_data[barcode], row, final_report_setup["calc"])
+        row = row_counter
+
+    if analyse_method == "single point":
+        temp_hits = {}
+        for barcode in all_plate_data:
+            temp_hits[barcode] = {}
+            for method in all_plate_data[barcode]["plates"]:
+                if final_report_setup["methods"][method]:
+                    temp_hits[barcode][method] = {"low": {}, "mid": {}, "high": {}}
+                    for well in all_plate_data[barcode]["plates"][method]["wells"]:
+                        if well in all_plate_data[barcode]["plates"][method]["sample"]:
+                            for split in pora_threshold:
+                                temp_well_value = all_plate_data[barcode]["plates"][method]["wells"][well]
+                                if float(final_report_setup["pora_threshold"][split]["min"]) < float(temp_well_value) < \
+                                        float(final_report_setup["pora_threshold"][split]["max"]):
+                                    temp_hits[barcode][method][split][well] = temp_well_value
+
+
+
+
+        # temp_hits = {}
+        # for barcode in all_plate_data:
+        #     temp_hits[barcode] = {}
+        #     for method in all_plate_data[barcode]["plates"]:
+        #         if final_report_setup["methods"][method]:
+        #             temp_hits[barcode][method] = {"low": {}, "mid": {}, "high": {}}
+        #             for well in all_plate_data[barcode]["plates"][method]["wells"]:
+        #                 if well in all_plate_data[barcode]["plates"][method]["sample"]:
+        #                     for split in pora_threshold:
+        #                         temp_well_value = all_plate_data[barcode]["plates"][method]["wells"][well]
+        #                         if float(pora_threshold[split]["min"]) < float(temp_well_value) < \
+        #                                 float(pora_threshold[split]["max"]):
+        #                             temp_hits[barcode][method][split][well] = temp_well_value
+
+    _well_writer_final_report(ws_report, temp_hits, final_report_setup, init_row, pora_threshold)
+    wb.save(output_file)
+
+
 
 if __name__ == "__main__":
     ...

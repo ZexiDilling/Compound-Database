@@ -1,8 +1,10 @@
 import copy
 from gui_layout import GUILayout
+from gui_settings_control import GUISettingsController
 from gui_functions import *
 from json_handler import dict_reader, dict_writer
 import configparser
+
 
 def main(config):
 
@@ -14,12 +16,27 @@ def main(config):
         archive_plates_dict = {}
 
     gl = GUILayout(config, plate_list)
+    gsc = GUISettingsController(config)
 
     window = gl.full_layout()
     window.maximize()
 
     #   WINDOW 1 - BIO  #
     graph_bio = window["-BIO_CANVAS-"]
+    bio_final_report_setup = {
+        "methods": {"original": False, "normalised": False, "pora": True},
+        "analyse": {"sample": True, "minimum": False, "max": False, "empty": False, "negative control": False,
+                    "positive control": False, "blank": False},
+        "calc": {"original": {"overview": True, "sample": True, "minimum": False, "max": False, "empty": False,
+                              "negative control": False, "positive control": False, "blank": False},
+                 "normalised": {"overview": True, "sample": True, "minimum": False, "max": False, "empty": False,
+                                "negative control": False, "positive control": False, "blank": False},
+                 "pora": {"overview": True, "sample": True, "minimum": False, "max": False, "empty": False,
+                          "negative control": False, "positive control": False, "blank": False},
+                 "zprime": True},
+        "pora_threshold": {"low": {"min": -200, "max": 0},
+                           "mid": {"min": 0, "max": 30},
+                           "high": {"min": 120, "max": 200}}}
 
     #   WINDOW 1 - PLATE LAYOUT #
     graph_plate = window["-CANVAS-"]
@@ -123,10 +140,17 @@ def main(config):
                 state_colours = values["-BIO_STATE-"]
                 export_folder = values["-BIO_EXPORT_FOLDER-"]
 
-                worked = bio_data(config, folder, well_states_report, plate_analysis_dict, plate_layout,
-                                          z_prime_calc, heatmap_colours)
+                worked, all_plates_data = bio_data(config, folder, well_states_report, plate_analysis_dict, plate_layout,
+                                                   z_prime_calc, heatmap_colours)
+
+                if "-BIO_COMBINED_REPORT-":
+                    ...
+
                 if worked:
                     sg.popup("Done")
+
+        if event == "-BIO_REPORT_SETTINGS-":
+            bio_final_report_setup = gsc.main_settings_controller()
 
         if event == "-BIO_ANALYSE_TYPE-":
             sg.popup("This functions does nothing ATM ")
@@ -372,18 +396,21 @@ def main(config):
                 if not values["-SIM_INPUT_COMPOUND_FILE-"]:
                     sg.popup_error("Missing Compound file")
                 else:
-                    sg.Popup("not working atm")
+                    tube_file = values["-SIM_INPUT_COMPOUND_FILE-"]
+                    output_folder = values["-SIM_OUTPUT-"]
+
+                    compound_freezer_to_2d_simulate(tube_file, output_folder)
 
             elif values["-SIM_INPUT_EQ-"] == "MP Production":
                 if not values["-SIM_INPUT_MP_FILE-"]:
                     sg.popup_error("Missing 2D barcode file")
                 else:
-                    folder_output = values["-SIM_OUTPUT-"]
+                    output_folder = values["-SIM_OUTPUT-"]
                     barcodes_2d = values["-SIM_INPUT_MP_FILE-"]
                     mp_name = values["-SIM_MP_NAME-"]
                     trans_vol = values["-SIM_MP_VOL-"]
 
-                    mp_production_2d_to_pb_simulate(folder_output, barcodes_2d, mp_name, trans_vol)
+                    mp_production_2d_to_pb_simulate(output_folder, barcodes_2d, mp_name, trans_vol)
 
                     sg.Popup("Done")
 
@@ -392,7 +419,6 @@ def main(config):
                     sg.popup_error("Missing PlateButler file")
                 else:
                     sg.Popup("not working atm")
-
 
         ###     TAB GROUP EVENTS    ###
         if event == "-TABLE_TAB_GRP-":
@@ -419,7 +445,7 @@ def main(config):
 
             if values["-PP-"] == "Assay Plates":
                 table = "join_main_mp"
-            else:
+            elif values["-PP-"] == "Mother Plates":
                 table = "compound_main"
 
             if treedata:
@@ -439,13 +465,13 @@ def main(config):
                     threshold = float(values["-THRESHOLD-"])
                     source_table = table
 
-                    treedata, all_data, compound_data, counter = table_update(mp_amount, transferee_volume,
-                                                                              ignore_active, sub_search, smiles,
-                                                                              sub_search_methode, threshold,
-                                                                              source_table)
+                    treedata, all_data, compound_data, counter = table_update_tree(mp_amount, transferee_volume,
+                                                                                   ignore_active, sub_search, smiles,
+                                                                                   sub_search_methode, threshold,
+                                                                                   source_table)
                     window['-TREE_DB-'].image_dict.clear()
                     window["-TREE_DB-"].update(treedata)
-                    window["-C_TABLE_COUNT-"].update(Text=f"Compounds: {counter}")
+                    window["-C_TABLE_COUNT-"].update(f"Compounds: {counter}")
                     window["-C_TABLE_REFRESH-"].update(text="Clear Table")
 
                 except ValueError:
@@ -457,8 +483,16 @@ def main(config):
             elif not values["-OUTPUT_FILE-"]:
                 sg.popup_error("missing folder")
             else:
-                if values["-C_TABLE_FILE_TYPE-"] == "Compound":
-                    compound_export(values["-OUTPUT_FILE-"], all_data["compound_list"])
+                if values["-PP-"] == "Mother Plates":
+                    output_folder = values["-OUTPUT_FILE-"]
+                    all_compound_data = all_data["compound_list"]
+
+                    compound_export(output_folder, all_compound_data)
+
+                elif values["-PP-"] == "Assay Plates":
+                    ...
+
+                sg.popup("Done")
 
 
 if __name__ == "__main__":

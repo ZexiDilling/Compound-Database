@@ -60,3 +60,16 @@ def daughter_plate_generator(mp_data, sample_amount, dp_name, dp_layout, volume)
                 [destination_well, volume, source_well, source_sample, plate])
             counter += 1
     return dp_dict
+
+
+def plate_layout_re_formate(plate_layout):
+    plate_layout_re = {}
+
+    for counter in plate_layout:
+        plate_layout_re[plate_layout[counter]["well_id"]] = {}
+
+        plate_layout_re[plate_layout[counter]["well_id"]]["group"] = plate_layout[counter]["group"]
+        plate_layout_re[plate_layout[counter]["well_id"]]["well_state"] = plate_layout[counter]["state"]
+        plate_layout_re[plate_layout[counter]["well_id"]]["colour"] = plate_layout[counter]["colour"]
+
+    return plate_layout_re
