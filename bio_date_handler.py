@@ -23,13 +23,16 @@ class BIOAnalyser:
 
         self.config = config
         self.cal_stuff = {"avg": mean, "stdev": stdev}
-        self.plate_analysis = bio_plate_report_setup["plate_analysis_dict"]
+
         self.well_states_report = bio_plate_report_setup["well_states_report"]
-        self.heatmap_colours = bio_plate_report_setup["heatmap_colours"]
+        self.plate_report_calc_dict = bio_plate_report_setup["plate_report_calc_dict"]
+        self.plate_calc_dict = bio_plate_report_setup["plate_calc_dict"]
+        self.plate_analysis = bio_plate_report_setup["plate_analysis_dict"]
         self.z_prime_calc = bio_plate_report_setup["z_prime_calc"]
-        # missing :
+        self.heatmap_colours = bio_plate_report_setup["heatmap_colours"]
         self.pora_threshold = bio_plate_report_setup["pora_threshold"]
-        # and state
+
+
 
     def __str__(self):
         """
@@ -93,21 +96,18 @@ class BIOAnalyser:
         for state in well_type:
             all_data["calculations"][methode][state] = {}
             for calc in self.cal_stuff:
-                try:
-                    all_data["calculations"][methode][state][calc] = self.cal_stuff[calc](
-                        [all_data["plates"][methode]["wells"][well] for well in all_data["plates"][methode][state]])
-                except ValueError:
-                    all_data["calculations"][methode][state][calc] = "NaN"
+                if self.plate_calc_dict[methode][calc]:
+                    try:
+                        all_data["calculations"][methode][state][calc] = self.cal_stuff[calc](
+                            [all_data["plates"][methode]["wells"][well] for well in all_data["plates"][methode][state]])
+                    except ValueError:
+                        all_data["calculations"][methode][state][calc] = "NaN"
 
-    def _cal_info(self, ws, translate_wells_to_cells, init_row, init_col, free_col, counter_row, temp_dict, methode):
+    def _cal_info(self, ws, init_col, counter_row, temp_dict, methode):
         """
         Writes in the calculation information.
-        for the original data, it colours the well based on state, and writes a guide to understand the colours
         :param ws: worksheet
-        :param translate_wells_to_cells: a dict for witch cell each well is in the excel file
-        :param init_row: row to start writing to
         :param init_col: column to writing to
-        :param free_col: what column should be free / the first column after the last column used for the plate data
         :param counter_row: a counter for what row to write to
         :param temp_dict: the dict with the data for each well
         :param methode: the analysed method
@@ -117,16 +117,17 @@ class BIOAnalyser:
         for state in temp_dict["plates"][methode]:
             temp_col = init_col
             if state != "wells":
-                for calc in temp_dict["calculations"][methode][state]:
-                    if counter_row == temp_row:
-                        ws[ex_cell(counter_row, temp_col + 1)] = calc
-                        ws[ex_cell(counter_row, temp_col + 1)].font = Font(b=True)
-                    if temp_col == init_col:
-                        ws[ex_cell(counter_row + 1, temp_col)] = state
-                        ws[ex_cell(counter_row + 1, temp_col)].font = Font(b=True)
-                    ws[ex_cell(counter_row + 1, temp_col + 1)] = temp_dict["calculations"][methode][state][calc]
-                    temp_col += 1
-                counter_row += 1
+                if self.plate_calc_dict[methode]["state"][state]:
+                    for calc in temp_dict["calculations"][methode][state]:
+                        if counter_row == temp_row:
+                            ws[ex_cell(counter_row, temp_col + 1)] = calc
+                            ws[ex_cell(counter_row, temp_col + 1)].font = Font(b=True)
+                        if temp_col == init_col:
+                            ws[ex_cell(counter_row + 1, temp_col)] = state
+                            ws[ex_cell(counter_row + 1, temp_col)].font = Font(b=True)
+                        ws[ex_cell(counter_row + 1, temp_col + 1)] = temp_dict["calculations"][methode][state][calc]
+                        temp_col += 1
+                    counter_row += 1
         return counter_row
 
     def _write_plate(self, ws, counter_row, temp_dict, methode, well_row_col, pw_dict):
@@ -151,18 +152,25 @@ class BIOAnalyser:
             # sets the headline and colour for the headline for row
             ws.cell(column=-1 + indent_col, row=counter_row, value=row).fill = \
                 PatternFill("solid", fgColor="DDDDDD")
-
             for index_col, col in enumerate(well_row_col["well_col"]):
                 if index_row == 0:
-                    # Writes the name of the method used for the plate
-                    ws.cell(column=indent_col-1, row=counter_row - 1, value=methode).font = Font(b=True)
+                    # Merge cell above tables, and writes the name of the method used for the plate
+                    # ws.merged_cells(start_row=counter_row - 2, start_column=indent_col - 1,
+                    #                 end_row=counter_row - 2, end_column=indent_col + 1)
+                    ws.cell(column=indent_col - 1, row=counter_row - 2, value=methode).font = Font(b=True)
+
                     # sets the headline and colour for the headline for column
                     ws.cell(column=index_col + indent_col, row=counter_row - 1, value=int(col)).fill = \
                         PatternFill("solid", fgColor="DDDDDD")
+
                 temp_well = f"{row}{col}"
                 temp_cell = ex_cell(counter_row, index_col + indent_col)
                 translate_wells_to_cells[temp_well] = temp_cell
-                # Writes the data in for each well. ignore wells witch state == empty
+                # Writes the data in for each well. ignore wells witch state == empty  - - - - -
+                #
+                #ADD TO SETTINGS!!!
+                #
+                #
                 if temp_well not in temp_dict["plates"][methode]["empty"]:
                     ws.cell(column=index_col + indent_col, row=counter_row,
                             value=temp_dict["plates"][methode]["wells"][temp_well])
@@ -170,8 +178,9 @@ class BIOAnalyser:
         free_col = len(well_row_col["well_col"]) + indent_col
 
         # Writes the info for the calculation for each method
-        counter_row = self._cal_info(ws, translate_wells_to_cells, init_row, init_col, free_col, counter_row, temp_dict,
-                                     methode)
+
+        if self.plate_calc_dict[methode]["use"]:
+            counter_row = self._cal_info(ws, init_col, counter_row, temp_dict, methode)
 
         # colour wells depending on what state the wells are (sample, blank, min, max...) and add a reading guide.
         if self.plate_analysis[methode]["state_mapping"]:
@@ -182,30 +191,39 @@ class BIOAnalyser:
             heatmap(self.config, ws, pw_dict, translate_wells_to_cells, self.heatmap_colours)
 
         if self.plate_analysis[methode]["Hit_Mapping"]:
-            hit_mapping(ws, temp_dict, self.pora_threshold, methode, translate_wells_to_cells)
+            hit_mapping(ws, temp_dict, self.pora_threshold, methode, translate_wells_to_cells, free_col, init_row)
 
         counter_row += 1
         return counter_row
 
-    @staticmethod
-    def cal_writer(ws_report, all_data, init_row):
+    def cal_writer(self, ws_report, all_data, init_row):
         indent_col = 2
         row_counter = init_row
         for plate_analysed in all_data["calculations"]:
-            ws_report.cell(column=-1 + indent_col, row=row_counter, value=plate_analysed).font = Font(b=True)
-            row_counter += 1
-            for state in all_data["calculations"][plate_analysed]:
-                ws_report.cell(column=indent_col, row=row_counter, value=state).font = Font(b=True)
-                if plate_analysed != "other_data":
-                    for calc in all_data["calculations"][plate_analysed][state]:
-                        ws_report.cell(column=indent_col + 1, row=row_counter, value=calc)
-                        ws_report.cell(column=indent_col + 2, row=row_counter,
-                                       value=all_data["calculations"][plate_analysed][state][calc])
-                else:
-                    ws_report.cell(column=indent_col + 1, row=row_counter,
-                                   value=all_data["calculations"][plate_analysed][state])
+            if self.plate_report_calc_dict[plate_analysed]["use"]:
+                ws_report.cell(column=-1 + indent_col, row=row_counter, value=plate_analysed).font = Font(b=True)
                 row_counter += 1
-            row_counter += 1
+                for state in all_data["calculations"][plate_analysed]:
+                    try:
+                        self.plate_report_calc_dict[plate_analysed]["state"][state]
+                        temp_name = "state"
+                    except KeyError:
+                        temp_name = "calc"
+
+                    if self.plate_report_calc_dict[plate_analysed][temp_name][state]:
+                        ws_report.cell(column=indent_col, row=row_counter, value=state).font = Font(b=True)
+                        if plate_analysed != "other_data":
+                            for calc in all_data["calculations"][plate_analysed][state]:
+                                ws_report.cell(column=indent_col + 1, row=row_counter, value=calc)
+                                ws_report.cell(column=indent_col + 2, row=row_counter,
+                                               value=all_data["calculations"][plate_analysed][state][calc])
+                        # for now, only writes z-prime
+                        else:
+                            if self.plate_report_calc_dict[plate_analysed]["calc"]["z_prime"]:
+                                ws_report.cell(column=indent_col + 1, row=row_counter,
+                                               value=all_data["calculations"][plate_analysed][state])
+                        row_counter += 1
+                row_counter += 1
         return ws_report
 
     def _well_writer(self, ws_report, all_data, init_row):
@@ -263,7 +281,7 @@ class BIOAnalyser:
         """
 
         wb = load_workbook(self.ex_file)
-        ws_data = wb.create_sheet("analysis_2")
+        ws_data = wb.create_sheet("analysis")
         counter_row = 0
 
         # sends each plate-analysed-type into the excel file

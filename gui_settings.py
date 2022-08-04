@@ -74,28 +74,30 @@ class GUISettingsLayout:
             ])
         ]])
 
-        layout = [sg.vtop([calc_col, well_col])]
+        matrix_col = sg.Frame("Matrix setup", [[
+            sg.Column([
+                [sg.T("Witch matrix to include.")],
+                [sg.T("A Matrix is the avg and stdev for each plate compared to the other plates")],
+                [sg.T("Only if the state is included in the analysis")],
+                [sg.Checkbox("sample", key="-FINAL_REPORT_MATRIX_sample-"),
+                 sg.Checkbox("minimum", key="-FINAL_REPORT_MATRIX_minimum-", default=True),
+                 sg.Checkbox("max", key="-FINAL_REPORT_MATRIX_max-", default=True),
+                 sg.Checkbox("empty", key="-FINAL_REPORT_MATRIX_empty-")],
+                [sg.Checkbox("negative control", key="-FINAL_REPORT_MATRIX_negative control-", default=True),
+                 sg.Checkbox("positive control", key="-FINAL_REPORT_MATRIX_positive control-", default=True),
+                 sg.Checkbox("blank", key="-FINAL_REPORT_MATRIX_blank-"),
+                 sg.Checkbox("z_prime", key="-FINAL_REPORT_MATRIX_z_prime-", default=True)],
+            ])
+        ]])
+
+        layout = [sg.vtop([calc_col, well_col, matrix_col])]
 
         return layout
 
     def settings_bio_plate_report(self):
-        colours = [keys for keys in list(self.config["colours to hex"].keys())]
-        col_report = sg.Frame("Report setup", [[
+
+        col_analysis_sheet = sg.Frame("Setup for analysis sheet", [[
             sg.Column([
-                [sg.T("Report setup per reading:", relief="groove")],
-                [sg.HorizontalSeparator()],
-                [sg.T("What well-state to include for the final report")],
-                [sg.Checkbox("Sample", key="-BIO_SAMPLE-", default=True), sg.Checkbox("Minimum", key="-BIO_MIN-"),
-                 sg.Checkbox("Maximum", key="-BIO_MAX-"), sg.Checkbox("Empty", key="-BIO_EMPTY-")],
-                [sg.Checkbox("Negative Control", key="-BIO_NEG_C-"), sg.Checkbox("Positive Control", key="-BIO_POS_C-"),
-                 sg.Checkbox("Blank", key="-BIO_BLANK-")],
-                [sg.HorizontalSeparator()],
-                [sg.T("What analysed method to include wells from")],
-                [sg.Checkbox("Original", key="-BIO_PLATE_REPORT_ORG-"),
-                 sg.Checkbox("Normalised", key="-BIO_PLATE_REPORT_NORM-"),
-                 sg.Checkbox("Pora", key="-BIO_PLATE_REPORT_PORA-"),
-                 sg.Checkbox("Pora Internal", key="-BIO_PLATE_REPORT_PORA_INTERNAL-")],
-                [sg.HorizontalSeparator()],
                 [sg.T("What calculation to include and for witch analysed method")],
                 [sg.T("Will only take in samples and method that have been used")],
                 [sg.Checkbox("Z prime", key="-BIO_Z_PRIME-", default=True)],
@@ -132,19 +134,98 @@ class GUISettingsLayout:
                  sg.Checkbox("Positive Control", key="-BIO_CAL_PORA_POS_C-"),
                  sg.Checkbox("Blank", key="-BIO_CAL_PORA_BLANK-")],
                 [sg.HorizontalSeparator()],
-                [sg.Checkbox("Pora Internal", key="-BIO_PLATE_REPORT_PORA_INTERNAL_CAL-"),
-                 sg.Checkbox("avg", key="-BIO_PLATE_CAL_PORA_INT_AVG-"),
-                 sg.Checkbox("stdev", key="-BIO_PLATE_CAL_PORA_INT_STDEV-")],
-                [sg.Checkbox("Sample", key="-BIO_CAL_PORA_INT_SAMPLE-"),
-                 sg.Checkbox("Minimum", key="-BIO_CAL_PORA_INT_MIN-"),
-                 sg.Checkbox("Maximum", key="-BIO_CAL_PORA_INT_MAX-"),
-                 sg.Checkbox("Empty", key="-BIO_CAL_PORA_INT_EMPTY-")],
-                [sg.Checkbox("Negative Control", key="-BIO_CAL_PORA_INT_NEG_C-"),
-                 sg.Checkbox("Positive Control", key="-BIO_CAL_PORA_INT_POS_C-"),
-                 sg.Checkbox("Blank", key="-BIO_CAL_PORA_INT_BLANK-")],
+                # [sg.Checkbox("Pora Internal", key="-BIO_PLATE_REPORT_PORA_INTERNAL_CAL-"),
+                #  sg.Checkbox("avg", key="-BIO_PLATE_CAL_PORA_INT_AVG-"),
+                #  sg.Checkbox("stdev", key="-BIO_PLATE_CAL_PORA_INT_STDEV-")],
+                # [sg.Checkbox("Sample", key="-BIO_CAL_PORA_INT_SAMPLE-"),
+                #  sg.Checkbox("Minimum", key="-BIO_CAL_PORA_INT_MIN-"),
+                #  sg.Checkbox("Maximum", key="-BIO_CAL_PORA_INT_MAX-"),
+                #  sg.Checkbox("Empty", key="-BIO_CAL_PORA_INT_EMPTY-")],
+                # [sg.Checkbox("Negative Control", key="-BIO_CAL_PORA_INT_NEG_C-"),
+                #  sg.Checkbox("Positive Control", key="-BIO_CAL_PORA_INT_POS_C-"),
+                #  sg.Checkbox("Blank", key="-BIO_CAL_PORA_INT_BLANK-")],
+                # [sg.HorizontalSeparator()],
+            ])
+        ]])
+
+        col_report_sheet = sg.Frame("Setup for report sheet", [[
+            sg.Column([
+                [sg.T("Report setup per reading:", relief="groove")],
                 [sg.HorizontalSeparator()],
+                [sg.T("What well-state to include for the final report")],
+                [sg.Checkbox("Sample", key="-BIO_SAMPLE-", default=True), sg.Checkbox("Minimum", key="-BIO_MIN-"),
+                 sg.Checkbox("Maximum", key="-BIO_MAX-"), sg.Checkbox("Empty", key="-BIO_EMPTY-")],
+                [sg.Checkbox("Negative Control", key="-BIO_NEG_C-"), sg.Checkbox("Positive Control", key="-BIO_POS_C-"),
+                 sg.Checkbox("Blank", key="-BIO_BLANK-")],
+                [sg.HorizontalSeparator()],
+                [sg.T("What analysed method to include wells from")],
+                [sg.Checkbox("Original", key="-BIO_PLATE_REPORT_ORG-")],
+                [sg.Checkbox("Normalised", key="-BIO_PLATE_REPORT_NORM-")],
+                [sg.Checkbox("Pora", key="-BIO_PLATE_REPORT_PORA-")],
+                [sg.Checkbox("Pora Internal", key="-BIO_PLATE_REPORT_PORA_INTERNAL-")],
+                [sg.HorizontalSeparator()],
+                [sg.Checkbox("Other calculations", key="-BIO_REPORT_SHEET_OTHER-", default=True),
+                 sg.Checkbox("Z prime", key="-BIO_REPORT_SHEET_Z_PRIME-", default=True)],
+                [sg.HorizontalSeparator()],
+                [sg.Checkbox("Original", key="-BIO_REPORT_SHEET_ORG_CALC-"),
+                 sg.Checkbox("avg", key="-BIO_REPORT_CAL_ORG_AVG-"),
+                 sg.Checkbox("stdev", key="-BIO_REPORT_CAL_ORG_STDEV-")],
+                [sg.Checkbox("Sample", key="-BIO_REPORT_CAL_ORG_SAMPLE-"),
+                 sg.Checkbox("Minimum", key="-BIO_REPORT_CAL_ORG_MIN-"),
+                 sg.Checkbox("Maximum", key="-BIO_REPORT_CAL_ORG_MAX-"),
+                 sg.Checkbox("Empty", key="-BIO_REPORT_CAL_ORG_EMPTY-")],
+                [sg.Checkbox("Negative Control", key="-BIO_REPORT_CAL_ORG_NEG_C-"),
+                 sg.Checkbox("Positive Control", key="-BIO_REPORT_CAL_ORG_POS_C-"),
+                 sg.Checkbox("Blank", key="-BIO_REPORT_CAL_ORG_BLANK-")],
+                [sg.HorizontalSeparator()],
+                [sg.Checkbox("Normalised", key="-BIO_REPORT_SHEET_NORM_CALC-"),
+                 sg.Checkbox("avg", key="-BIO_REPORT_CAL_NORM_AVG-"),
+                 sg.Checkbox("stdev", key="-BIO_REPORT_CAL_NORM_STDEV-")],
+                [sg.Checkbox("Sample", key="-BIO_REPORT_CAL_NORM_SAMPLE-"),
+                 sg.Checkbox("Minimum", key="-BIO_REPORT_CAL_NORM_MIN-"),
+                 sg.Checkbox("Maximum", key="-BIO_REPORT_CAL_NORM_MAX-"),
+                 sg.Checkbox("Empty", key="-BIO_REPORT_CAL_NORM_EMPTY-")],
+                [sg.Checkbox("Negative Control", key="-BIO_REPORT_CAL_NORM_NEG_C-"),
+                 sg.Checkbox("Positive Control", key="-BIO_REPORT_CAL_NORM_POS_C-"),
+                 sg.Checkbox("Blank", key="-BIO_REPORT_CAL_NORM_BLANK-")],
+                [sg.HorizontalSeparator()],
+                [sg.Checkbox("Pora", key="-BIO_REPORT_SHEET_PORA_CAL-"),
+                 sg.Checkbox("avg", key="-BIO_REPORT_CAL_PORA_AVG-"),
+                 sg.Checkbox("stdev", key="-BIO_REPORT_CAL_PORA_STDEV-")],
+                [sg.Checkbox("Sample", key="-BIO_REPORT_CAL_PORA_SAMPLE-"),
+                 sg.Checkbox("Minimum", key="-BIO_REPORT_CAL_PORA_MIN-"),
+                 sg.Checkbox("Maximum", key="-BIO_REPORT_CAL_PORA_MAX-"),
+                 sg.Checkbox("Empty", key="-BIO_REPORT_CAL_PORA_EMPTY-")],
+                [sg.Checkbox("Negative Control", key="-BIO_REPORT_CAL_PORA_NEG_C-"),
+                 sg.Checkbox("Positive Control", key="-BIO_REPORT_CAL_PORA_POS_C-"),
+                 sg.Checkbox("Blank", key="-BIO_REPORT_CAL_PORA_BLANK-")],
+                [sg.HorizontalSeparator()],
+                # [sg.Checkbox("Pora Internal", key="-BIO_REPORT_SHEET_PORA_INTERNAL_CAL-"),
+                #  sg.Checkbox("avg", key="-BIO_REPORT_CAL_PORA_INT_AVG-"),
+                #  sg.Checkbox("stdev", key="-BIO_REPORT_CAL_PORA_INT_STDEV-")],
+                # [sg.Checkbox("Sample", key="-BIO_REPORT_CAL_PORA_INT_SAMPLE-"),
+                #  sg.Checkbox("Minimum", key="-BIO_REPORT_CAL_PORA_INT_MIN-"),
+                #  sg.Checkbox("Maximum", key="-BIO_REPORT_CAL_PORA_INT_MAX-"),
+                #  sg.Checkbox("Empty", key="-BIO_REPORT_CAL_PORA_INT_EMPTY-")],
+                # [sg.Checkbox("Negative Control", key="-BIO_REPORT_CAL_PORA_INT_NEG_C-"),
+                #  sg.Checkbox("Positive Control", key="-BIO_REPORT_CAL_PORA_INT_POS_C-"),
+                #  sg.Checkbox("Blank", key="-BIO_REPORT_CAL_PORA_INT_BLANK-")],
+
             ])
         ]], expand_y=True)
+        single_point_layout = self.method_single_point()
+        tab_single_point = sg.Tab("Single point", single_point_layout)
+
+        tab_group_analysis_method = [tab_single_point]
+        col_analysis_method = sg.TabGroup([tab_group_analysis_method], selected_background_color="purple")
+
+        # layout = [[col_analysis_sheet, col_report_sheet, col_analysis_method]]
+        layout = [sg.vtop([col_analysis_sheet, col_report_sheet, col_analysis_method])]
+
+        return layout
+
+    def method_single_point(self):
+        colours = [keys for keys in list(self.config["colours to hex"].keys())]
 
         single_point = sg.Frame("Single point report setup", [[
             sg.Column([
@@ -195,7 +276,7 @@ class GUISettingsLayout:
             ])
         ]])
 
-        layout = [sg.vtop([col_report, single_point])]
+        layout = [[single_point]]
 
         return layout
 

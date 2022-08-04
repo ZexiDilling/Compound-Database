@@ -24,38 +24,62 @@ def main(config):
 
     #   WINDOW 1 - BIO  #
     graph_bio = window["-BIO_CANVAS-"]
-    bio_import_folder = None
     bio_export_folder = None
     bio_final_report_setup = {
         "methods": {"original": False, "normalised": False, "pora": True},
         "analyse": {"sample": True, "minimum": False, "max": False, "empty": False, "negative control": False,
                     "positive control": False, "blank": False},
-        "calc": {"original": {"overview": True, "sample": True, "minimum": False, "max": False, "empty": False,
-                              "negative control": False, "positive control": False, "blank": False},
-                 "normalised": {"overview": True, "sample": True, "minimum": False, "max": False, "empty": False,
-                                "negative control": False, "positive control": False, "blank": False},
+        "calc": {"original": {"overview": True, "sample": False, "minimum": True, "max": True, "empty": False,
+                              "negative control": True, "positive control": True, "blank": False},
+                 "normalised": {"overview": True, "sample": False, "minimum": True, "max": True, "empty": False,
+                                "negative control": True, "positive control": True, "blank": False},
                  "pora": {"overview": True, "sample": True, "minimum": False, "max": False, "empty": False,
                           "negative control": False, "positive control": False, "blank": False},
                  "z_prime": True},
         "pora_threshold": {"low": {"min": -200, "max": 0},
                            "mid": {"min": 0, "max": 30},
-                           "high": {"min": 120, "max": 200}}}
+                           "high": {"min": 120, "max": 200}},
+        "full_report_matrix": {"sample": False, "minimum": True, "max": True, "empty": False, "negative control": True,
+                               "positive control": True, "blank": False, "z_prime": True}}
     bio_plate_report_setup = {
         "well_states_report": {'sample': True, 'blank': False, 'max': False, 'minimum': False,
                                'positive': False, 'negative': False, 'empty': False},
+        "plate_report_calc_dict": {"original": {"use": True,
+                                                "avg": True,
+                                                "stdev": True,
+                                                "state": {"sample": True, "minimum": True, "max": True, "empty": True,
+                                                          "negative": True, "positive": True, "blank": True}},
+                                   "normalised": {"use": True,
+                                                  "avg": True,
+                                                  "stdev": True,
+                                                  "state": {"sample": True, "minimum": True, "max": True, "empty": True,
+                                                            "negative": True, "positive": True, "blank": True}},
+                                   "pora": {"use": True,
+                                            "avg": True,
+                                            "stdev": True,
+                                            "state": {"sample": True, "minimum": True, "max": True, "empty": True,
+                                                      "negative": True, "positive": True, "blank": True}},
+                                   "pora_internal": {"use": False,
+                                                     "avg": True,
+                                                     "stdev": True,
+                                                     "state": {"sample": True, "minimum": True, "max": True,
+                                                               "empty": True, "negative": True, "positive": True,
+                                                               "blank": True}},
+                                   "other_data": {"use": True,
+                                                  "calc": {"z_prime": True}}},
         "plate_calc_dict": {
-            "original": {"use": True, "avg": True, "stdev": True, "State":
-                {"sample": True, "minimum": True, "max": True, "empty": True, "negative": True, "positive": True,
-                 "blank": True}},
-            "normalised": {"use": True, "avg": True, "stdev": True, "State":
-                {"sample": True, "minimum": True, "max": True, "empty": True, "negative": True, "positive": True,
-                 "blank": True}},
-            "pora": {"use": True, "avg": True, "stdev": True, "State":
-                {"sample": True, "minimum": True, "max": True, "empty": True, "negative": True, "positive": True,
-                 "blank": True}},
-            "pora_internal": {"use": True, "avg": True, "stdev": True, "State":
-                {"sample": True, "minimum": True, "max": True, "empty": True, "negative": True, "positive": True,
-                 "blank": True}},
+            "original": {"use": True, "avg": True, "stdev": True,
+                         "state": {"sample": True, "minimum": True, "max": True, "empty": True, "negative": True,
+                                   "positive": True, "blank": True}},
+            "normalised": {"use": True, "avg": True, "stdev": True,
+                           "state": {"sample": True, "minimum": True, "max": True, "empty": True, "negative": True,
+                                     "positive": True, "blank": True}},
+            "pora": {"use": True, "avg": True, "stdev": True,
+                     "state": {"sample": True, "minimum": True, "max": True, "empty": True, "negative": True,
+                               "positive": True, "blank": True}},
+            "pora_internal": {"use": False, "avg": True, "stdev": True,
+                              "state": {"sample": True, "minimum": True, "max": True, "empty": True, "negative": True,
+                                        "positive": True, "blank": True}},
         },
         "plate_analysis_dict": {"original": {"used": True, "methode": org,
                                              "state_mapping": True, "heatmap": False, "Hit_Mapping": False},
@@ -63,21 +87,21 @@ def main(config):
                                                "state_mapping": False, "heatmap": True, "Hit_Mapping": False},
                                 "pora": {"used": True, "methode": pora,
                                          "state_mapping": False, "heatmap": False, "Hit_Mapping": True},
-                                "pora_internal": {"used": True, "methode": pora_internal,
+                                "pora_internal": {"used": False, "methode": pora_internal,
                                                   "state_mapping": False, "heatmap": False, "Hit_Mapping": True}
                                 },
         "z_prime_calc": True,
         "heatmap_colours": {'start': 'light red', 'mid': 'white', 'end': 'light green'},
         "pora_threshold": {"low": {"min": -200,
-                                    "max": 0},
-                            "mid": {"min": 0,
-                                    "max": 30},
-                            "high": {"min": 120,
-                                     "max": 200},
-                            "colour": {"low": "green",
-                                       "mid": "yellow",
-                                       "high": "blue"}
-                            }
+                                   "max": 0},
+                           "mid": {"min": 0,
+                                   "max": 30},
+                           "high": {"min": 120,
+                                    "max": 200},
+                           "colour": {"low": "green",
+                                      "mid": "yellow",
+                                      "high": "blue"}
+                           }
     }
 
     #   WINDOW 1 - PLATE LAYOUT #
@@ -101,7 +125,7 @@ def main(config):
         if event == sg.WIN_CLOSED:
             break
 
-        ###   WINDOW 1 - SEARCH     ###
+        #   WINDOW 1 - SEARCH     ###
         if event == "-SEARCH_ORIGIN-":
             values["-SEARCH_ORIGIN-"]
             temp_values = list(config[values["-SEARCH_ORIGIN-"]].keys())
@@ -129,7 +153,7 @@ def main(config):
         if event == "-DRAW_MOL-":
             sg.popup("This does not work yet, sorry. Use Chemdraw and copy smiles code instead")
 
-        ###     WINDOW 1 - BIO DATA         ###
+        #     WINDOW 1 - BIO DATA         ###
         if event == "-BIO_PLATE_LAYOUT-":
             well_dict.clear()
             well_dict = copy.deepcopy(archive_plates_dict[values["-BIO_PLATE_LAYOUT-"]]["well_layout"])
@@ -169,12 +193,6 @@ def main(config):
                 if not bio_export_folder:
                     bio_export_folder = values["-BIO_EXPORT_FOLDER-"]
 
-                # missing implimentations: "
-                state_colours = values["-BIO_STATE-"]
-
-                # worked, all_plates_data = bio_data(config, bio_import_folder, well_states_report, plate_analysis_dict,
-                #                                    plate_layout, z_prime_calc, heatmap_colours)
-
                 worked, all_plates_data = bio_data(config, bio_import_folder, plate_layout, bio_plate_report_setup)
 
                 if values["-BIO_COMBINED_REPORT-"]:
@@ -189,14 +207,13 @@ def main(config):
                 final_report_name = sg.popup_get_text("Final Report Name?")
                 window["-FINAL_BIO_NAME-"].update(value=final_report_name)
 
-
         if event == "-BIO_REPORT_SETTINGS-":
             bio_final_report_setup, bio_plate_report_setup = gsc.main_settings_controller()
 
         if event == "-BIO_ANALYSE_TYPE-":
             sg.popup("This functions does nothing ATM ")
 
-        ###     WINDOW 1 - PLATE LAYOUT     ###
+        #     WINDOW 1 - PLATE LAYOUT     ###
         if event == "-DRAW-":
             well_dict.clear()
             # sets the size of the well for when it draws the plate
@@ -216,8 +233,8 @@ def main(config):
                     window["-ARCHIVE-"].update(False)
                     values["-ARCHIVE-"] = False
 
-            well_dict, min_x, min_y, max_x, max_y = draw_plate(config, graph, plate_type, well_dict, archive_plates, gui_tab,
-                                                               sample_type)
+            well_dict, min_x, min_y, max_x, max_y = draw_plate(config, graph, plate_type, well_dict, archive_plates,
+                                                               gui_tab, sample_type)
             plate_active = True
 
         if event == "-EXPORT_LAYOUT-":
@@ -309,7 +326,7 @@ def main(config):
                     temp_tool = "paint"
                 temp_selector = True
                 prior_rect = graph_plate.draw_rectangle(start_point, end_point, fill_color="",
-                                                  line_color=config["plate_colouring"][temp_tool])
+                                                        line_color=config["plate_colouring"][temp_tool])
 
         # it does not always detect this event:
         elif event.endswith("+UP"):
@@ -377,7 +394,7 @@ def main(config):
             temp_selector = False
             temp_tool = None
 
-        ###     WINDOW 1 - UPDATE Database      ###
+        #     WINDOW 1 - UPDATE Database      ###
         if event == "-UPDATE_COMPOUND-":
             if not values["-UPDATE_FOLDER-"]:
                 sg.popup_error("Please select a folder containing compound data")
@@ -415,9 +432,9 @@ def main(config):
         if event == "-UPDATE_AUTO-":
             sg.PopupOKCancel("this is not working atm")
 
-                        ### TABLE TABS ###
+        # TABLE TABS ###
 
-        ###     WINDOW 1 - SIMULATE         ###
+        #     WINDOW 1 - SIMULATE         ###
         if event == "-SIM_INPUT_EQ-":
 
             if values["-SIM_INPUT_EQ-"] == "comPOUND":
@@ -467,11 +484,11 @@ def main(config):
             else:
                 print(values["-SIM_INPUT_EQ-"])
 
-        ###     TAB GROUP EVENTS    ###
+        #     TAB GROUP EVENTS    ###
         if event == "-TABLE_TAB_GRP-":
             print(values["-TABLE_TAB_GRP-"])
 
-        ###     WINDOW TABLES - COMPOUND TABLE      ###
+        #     WINDOW TABLES - COMPOUND TABLE      ###
         if event == "-TREE_DB-":
             try:
                 temp_id = window.Element("-TREE_DB-").SelectedRows[0]
@@ -512,10 +529,8 @@ def main(config):
                     threshold = float(values["-THRESHOLD-"])
                     source_table = table
 
-                    table_data = table_update_tree(mp_amount, transferee_volume,
-                                                                                   ignore_active, sub_search, smiles,
-                                                                                   sub_search_methode, threshold,
-                                                                                   source_table)
+                    table_data = table_update_tree(mp_amount, transferee_volume, ignore_active, sub_search, smiles,
+                                                   sub_search_methode, threshold, source_table)
                     if table_data:
                         treedata, all_data, compound_data, counter = table_data
                         window['-TREE_DB-'].image_dict.clear()

@@ -97,35 +97,38 @@ class GUILayout:
                 [sg.Text("sample type (Not working)", size=self.standard_size),
                  sg.DropDown(sample_type, key="-BIO_SAMPLE_TYPE-", default_value=sample_type[0],
                              size=self.standard_size, enable_events=True)],
-                [sg.Checkbox("heatmap", key="-BIO_HEATMAP-")],
-                [sg.Text("start Colour:", size=self.standard_size),
-                 sg.DropDown(colours, key="-HEAT_START-", size=self.standard_size,
-                             default_value=colours[0])],
-                [sg.Text("Mid Colour:", size=self.standard_size),
-                 sg.DropDown(colours, key="-HEAT_MID-", size=self.standard_size,
-                             default_value=colours[13])],
-                [sg.Text("End Colour:", size=self.standard_size),
-                 sg.DropDown(colours, key="-HEAT_END-", size=self.standard_size,
-                             default_value=colours[4])],
-                [sg.Checkbox("State colours", key="-BIO_STATE-")],
-                [sg.Button("Export", key="-EXPORT_BIO-"), sg.Checkbox("Compound related data?",
-                                                                      key="-BIO_COMPOUND_DATA-")]
+                [sg.Checkbox("combined report? ", key="-BIO_COMBINED_REPORT-", default=False, enable_events=True),
+                 sg.B("Report setting", key="-BIO_REPORT_SETTINGS-")],
+                [sg.InputText(key="-FINAL_BIO_NAME-")],
+                # [sg.Checkbox("heatmap", key="-BIO_HEATMAP-")],
+                # [sg.Text("start Colour:", size=self.standard_size),
+                #  sg.DropDown(colours, key="-HEAT_START-", size=self.standard_size,
+                #              default_value=colours[0])],
+                # [sg.Text("Mid Colour:", size=self.standard_size),
+                #  sg.DropDown(colours, key="-HEAT_MID-", size=self.standard_size,
+                #              default_value=colours[13])],
+                # [sg.Text("End Colour:", size=self.standard_size),
+                #  sg.DropDown(colours, key="-HEAT_END-", size=self.standard_size,
+                #              default_value=colours[4])],
+                # [sg.Checkbox("State colours", key="-BIO_STATE-")],
+                [sg.Button("Export", key="-EXPORT_BIO-"),
+                 sg.Checkbox("Compound related data?", key="-BIO_COMPOUND_DATA-")]
             ])
         ]])
 
-        col_report = sg.Frame("Report setup", [[
-            sg.Column([
-                [sg.T("Data for each excel file:")],
-                [sg.Checkbox("Sample", key="-BIO_SAMPLE-", default=True), sg.Checkbox("Minimum", key="-BIO_MIN-"),
-                 sg.Checkbox("Max", key="-BIO_MAX-"), sg.Checkbox("Empty", key="-BIO_EMPTY-")],
-                [sg.Checkbox("Negative Control", key="-BIO_NEG_C-"), sg.Checkbox("Positive Control", key="-BIO_POS_C-"),
-                 sg.Checkbox("Blank", key="-BIO_BLANK-"), sg.Checkbox("Z prime", key="-BIO_Z-PRIME-")],
-                [sg.T("Data for combined report")],
-                [sg.Checkbox("combined report? ", key="-BIO_COMBINED_REPORT-", default=False, enable_events=True)],
-                [sg.InputText(key="-FINAL_BIO_NAME-")],
-                [sg.B("Report setting", key="-BIO_REPORT_SETTINGS-")]
-            ])
-        ]])
+        # col_report = sg.Frame("Report setup", [[
+        #     sg.Column([
+        #         [sg.T("Data for each excel file:")],
+        #         [sg.Checkbox("Sample", key="-BIO_SAMPLE-", default=True), sg.Checkbox("Minimum", key="-BIO_MIN-"),
+        #          sg.Checkbox("Max", key="-BIO_MAX-"), sg.Checkbox("Empty", key="-BIO_EMPTY-")],
+        #         [sg.Checkbox("Negative Control", key="-BIO_NEG_C-"), sg.Checkbox("Positive Control", key="-BIO_POS_C-"),
+        #          sg.Checkbox("Blank", key="-BIO_BLANK-"), sg.Checkbox("Z prime", key="-BIO_Z-PRIME-")],
+        #         [sg.T("Data for combined report")],
+        #         [sg.Checkbox("combined report? ", key="-BIO_COMBINED_REPORT-", default=False, enable_events=True)],
+        #         [sg.InputText(key="-FINAL_BIO_NAME-")],
+        #         [sg.B("Report setting", key="-BIO_REPORT_SETTINGS-")]
+        #     ])
+        # ]])
 
         col_graph = sg.Frame("Plate Layout", [[
             sg.Column([
@@ -145,7 +148,8 @@ class GUILayout:
             ])
         ]])
 
-        layout = [sg.vtop([col_bio_analysis, col_report, col_graph])]
+        # layout = [sg.vtop([col_bio_analysis, col_report, col_graph])]
+        layout = [sg.vtop([col_bio_analysis, col_graph])]
 
         return layout
 
