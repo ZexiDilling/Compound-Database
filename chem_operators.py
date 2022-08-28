@@ -7,23 +7,36 @@ from rdkit import DataStructs
 from rdkit.Chem.Fingerprints import FingerprintMols
 from rdkit.Chem.AtomPairs import Pairs
 
+
 class ChemOperators:
+    def __str__(self):
+        """
+        All the chemical operations that are being made.
+        this should not be a class... properly!!
+        """
 
     @staticmethod
     def get_mol(smiles):
         """
         Gets molecule weight based on smiles code
+
         :param smiles: Smiles code for compound
+        :type smiles: str
         :return: molecule weight in mols
+        :rtype: Chem.MolFromSmiles
         """
         return Chem.MolFromSmiles(smiles)
 
     def png_string(self, smiles, size=(250, 100)):
         """
         Translate smiles code to a png-string that can be drawn, to get a 2d drawing of compounds from a smiles code
+
         :param smiles: Smiles code for a compound
-        :param size: the size of the picture
-        :return: a png in string formate
+        :type smiles: str
+        :param size: The size of the picture
+        :type size: (int, int)
+        :return: A png in string formate
+        :rtype: str
         """
         mol = self.get_mol(smiles)
         data = rdMolDraw2D.MolDraw2DCairo(size[0], size[1])
@@ -34,12 +47,19 @@ class ChemOperators:
     def structure_search(self, methode, threshold, rows, smiles_search, morgan_values=None):
         """
         Compare molecules with a main smiles code, to see how similar they are.
+
         :param methode: What structure search methode to use. (general, morgan or dice)
+        :type methode: str
         :param threshold: Minimum similarity score the compound needs
+        :type threshold: int
         :param rows: Rows from the database with compounds.
+        :type rows: dict
         :param smiles_search: Main smiles code, that compounds are compared to.
+        :type smiles_search: str
         :param morgan_values: Morgan search values, for determining different variables of the search criteria.
+        :type: list or None
         :return: Rows from the database, with compounds under the threshold removed.
+        :rtype: dict
         """
         sub_search = self.sub_search_method(methode)
         smiles_1 = smiles_search
@@ -61,8 +81,11 @@ class ChemOperators:
     def sub_search_method(self, methode):
         """
         set the methode to use
-        :param methode: what methode to use
-        :return: sub_search with the right set-up
+
+        :param methode: What methode to use
+        :type methode: str
+        :return: Sub_search with the right set-up
+        :rtype: function
         """
         if methode == "finger":
             sub_search = self.match_sub_structure_general
@@ -75,9 +98,12 @@ class ChemOperators:
 
     def match_sub_structure_general(self, smiles):
         """
-        uses Fingerprint search to find out how similar two compounds are
+        Uses Fingerprint search to find out how similar two compounds are
+
         :param smiles: The two smiles codes that are compared
+        :type smiles: tuple
         :return: Match score for how similar the two compounds are
+        :rtype: int
         """
         mols = [self.get_mol(smile) for smile in smiles]
         fp1, fp2 = [FingerprintMols.FingerprintMol(mol) for mol in mols]
@@ -89,12 +115,19 @@ class ChemOperators:
         """
         Using Morgan search to find out how similar two compounds are
         NEEDS TO READ UP ON THIS! ! !
+
         :param smiles: The two smiles codes that are compared
+        :type smiles: tuple
         :param bonds:
+        :type bonds:
         :param n_bits:
+        :type n_bits: int
         :param chirality:
+        :type chirality: bool
         :param features:
+        :type features: bool
         :return: Match score for how similar the two compounds are
+        :rtype: int
         """
         mols = [self.get_mol(smile) for smile in smiles]
         fp1, fp2 = [AllChem.GetMorganFingerprintAsBitVect(mol, radius=bonds, nBits=n_bits,
@@ -108,8 +141,11 @@ class ChemOperators:
     def match_dice(self, smiles):
         """
         uses Dice search to find out how similar two compounds are
+
         :param smiles: The two smiles codes that are compared
+        :type smiles: tuple
         :return: Match score for how similar the two compounds are
+        :rtype: int
         """
         mols = [self.get_mol(smile) for smile in smiles]
         ap1, ap2 = [Pairs.GetAtomPairFingerprint(mol) for mol in mols]

@@ -1,6 +1,6 @@
 import configparser
 import pandas as pd
-from json_handler import dict_reader
+from json_handler import plate_dict_reader
 import re
 from statistics import mean, stdev
 from openpyxl import load_workbook
@@ -11,21 +11,19 @@ from bio_data_functions import *
 
 
 class BIOAnalyser:
+    """
+    :param config: the config file for the program
+    :type config: configparser.ConfigParser
+    :param bio_plate_report_setup: dict over what state wells should be in, to be printed on the report sheet.
+    :type bio_plate_report_setup: dict
+    """
     def __init__(self, config, bio_plate_report_setup):
-        """
-        :param config: the config file for the program
-        :type config: configparser.ConfigParser
-        :param well_states_report: dict over what state wells should be in, to be printed on the report sheet.
-        :type well_states_report: dict
-        :param plate_analysis_dict: Method used to analyse the data
-        :type plate_analysis_dict: dict
-        """
-
         self.config = config
         self.cal_stuff = {"avg": mean, "stdev": stdev}
 
+        self.well_states_report_method = bio_plate_report_setup["well_states_report_method"]
         self.well_states_report = bio_plate_report_setup["well_states_report"]
-        self.plate_report_calc_dict = bio_plate_report_setup["plate_report_calc_dict"]
+        self.plate_report_calc_dict = bio_plate_report_setup["calc_dict"]
         self.plate_calc_dict = bio_plate_report_setup["plate_calc_dict"]
         self.plate_analysis = bio_plate_report_setup["plate_analysis_dict"]
         self.z_prime_calc = bio_plate_report_setup["z_prime_calc"]
@@ -33,18 +31,19 @@ class BIOAnalyser:
         self.pora_threshold = bio_plate_report_setup["pora_threshold"]
 
 
-
     def __str__(self):
         """
-        A modul that analyse raw data from a plate reader. where the raw data is an excel file.
-        The plate reader used for these data is a ????
+        A class that handles the data from a Tecan platereader, where the data is in an excel formate.
+        It does calculations and analysis of the data, and makes a final report based on everything
         :return: the analysed data
         """
 
     def _plate_well_dict(self):
         """
         Makes a dict over the state of each well (empty, sample, blank...)
-        :return: pw_dict
+
+        :return: pw_dict: A dict over the wells and what state they are in.
+        :rtype: dict
         """
         pw_dict = {}
         for layout in self.plate:
@@ -59,28 +58,41 @@ class BIOAnalyser:
     def _data_converter(self, all_data, well_type):
         """
         convert raw data in the analysed data
-        :return: all_data, well_row, well_col, pw_dict
+
+        :param all_data: A dict over all plate date. all the analysed data will be added to this dict
+        :type all_data: dict
+        :param well_type: A dict over what state/type each well/cell is in.
+        :type well_type: dict
+        :return:
+            - all_data: A dict over all plate date. all the analysed data will be added to this dict
+            - pw_dict: A dict over the wells and what state they are in.
+        :rtype:
+            - dict
+            - dict
         """
 
         pw_dict = self._plate_well_dict()
 
         for methode in self.plate_analysis:
-            if self.plate_analysis[methode]["used"]:
+            if self.plate_analysis[methode]["use"]:
                 self._well_calculations(well_type, all_data, methode)
 
-        all_data["calculations"]["other_data"] = {}
+        all_data["calculations"]["other"] = {}
         if self.z_prime_calc:
-            all_data["calculations"]["other_data"]["z_prime"] = z_prime(all_data, "normalised")
+            all_data["calculations"]["other"]["z_prime"] = z_prime_calculator(all_data, "normalised")
 
         return all_data, pw_dict
 
     def _well_calculations(self, well_type, all_data, methode):
         """
         Calculate each analyse methode for each well
-        :param well_type: a dict for each state (empty, sample, blank...) with a list of the wells in that state
-        :param all_data: all the data
+
+        :param well_type: A dict for each state (empty, sample, blank...) with a list of the wells in that state
+        :type well_type: dict
+        :param all_data: A dict over all plate date. all the analysed data will be added to this dict
+        :type all_data: dict
         :param methode: what analyse method is being used
-        :return:
+        :return: The calculations of avg and stdev added to all_data
         """
         if methode != "original":
             all_data["plates"][methode] = {}
@@ -101,17 +113,24 @@ class BIOAnalyser:
                         all_data["calculations"][methode][state][calc] = self.cal_stuff[calc](
                             [all_data["plates"][methode]["wells"][well] for well in all_data["plates"][methode][state]])
                     except ValueError:
-                        all_data["calculations"][methode][state][calc] = "NaN"
+                        all_data["calculations"][methode][state][calc] = None
 
     def _cal_info(self, ws, init_col, counter_row, temp_dict, methode):
         """
         Writes in the calculation information.
-        :param ws: worksheet
+
+        :param ws: The worksheet for the excel filere where the data is added
+        :type ws: openpyxl.worksheet.worksheet.Worksheet
         :param init_col: column to writing to
+        :type init_col: int
         :param counter_row: a counter for what row to write to
+        :type counter_row: int
         :param temp_dict: the dict with the data for each well
+        :type temp_dict: dict
         :param methode: the analysed method
-        :return:counter_row
+        :type methode: str
+        :return: counter_row: the next row to write on.
+        :rtype: int
         """
         temp_row = counter_row
         for state in temp_dict["plates"][methode]:
@@ -133,13 +152,21 @@ class BIOAnalyser:
     def _write_plate(self, ws, counter_row, temp_dict, methode, well_row_col, pw_dict):
         """
         Writes the data for each analyse into the excel file including the calculations
-        :param ws: Worksheet
-        :param counter_row: what row to write to
-        :param temp_dict: the dict for the specific analysed method
-        :param methode: what analysed method are being looked at
-        :param well_row_col: all the headlines for each row and column
+
+        :param ws: The worksheet for the excel filere where the data is added
+        :type ws: openpyxl.worksheet.worksheet.Worksheet
+        :param counter_row: What row to write to
+        :type counter_row: int
+        :param temp_dict: The dict for the specific analysed method
+        :type temp_dict: dict
+        :param methode: What analysed method are being looked at
+        :type methode: str
+        :param well_row_col: All the headlines for each row and column
+        :type well_row_col: dict
         :param pw_dict: a dict for each well and it's state (empty, sample, blank...)
-        :return: counter_row
+        :type pw_dict:dict
+        :return: counter_row: the next row to write on.
+        :rtype: int
         """
         indent_col = 3
         indent_row = 3
@@ -183,25 +210,36 @@ class BIOAnalyser:
             counter_row = self._cal_info(ws, init_col, counter_row, temp_dict, methode)
 
         # colour wells depending on what state the wells are (sample, blank, min, max...) and add a reading guide.
-        if self.plate_analysis[methode]["state_mapping"]:
+        if self.plate_analysis[methode]["state_map"]:
             state_mapping(self.config, ws, translate_wells_to_cells, self.plate, init_row, free_col, temp_dict, methode)
 
         # colour in the heat map, if sets to active. Can set for each method
         if self.plate_analysis[methode]["heatmap"]:
             heatmap(self.config, ws, pw_dict, translate_wells_to_cells, self.heatmap_colours)
 
-        if self.plate_analysis[methode]["Hit_Mapping"]:
+        if self.plate_analysis[methode]["hit_map"]:
             hit_mapping(ws, temp_dict, self.pora_threshold, methode, translate_wells_to_cells, free_col, init_row)
 
         counter_row += 1
         return counter_row
 
-    def cal_writer(self, ws_report, all_data, init_row):
+    def cal_writer(self, ws, all_data, init_row):
+        """
+        Writes all the calculations to its own sheet for an overview.
+
+        :param ws: The worksheet for the excel filere where the data is added
+        :type ws: openpyxl.worksheet.worksheet.Worksheet
+        :param all_data: A dict over all plate date. all the analysed data will be added to this dict
+        :type all_data: dict
+        :param init_row: The first row to write data to.
+        :type init_row: int
+        :return: All the calculations writen in the worksheet called: report
+        """
         indent_col = 2
         row_counter = init_row
         for plate_analysed in all_data["calculations"]:
             if self.plate_report_calc_dict[plate_analysed]["use"]:
-                ws_report.cell(column=-1 + indent_col, row=row_counter, value=plate_analysed).font = Font(b=True)
+                ws.cell(column=-1 + indent_col, row=row_counter, value=plate_analysed).font = Font(b=True)
                 row_counter += 1
                 for state in all_data["calculations"][plate_analysed]:
                     try:
@@ -211,73 +249,86 @@ class BIOAnalyser:
                         temp_name = "calc"
 
                     if self.plate_report_calc_dict[plate_analysed][temp_name][state]:
-                        ws_report.cell(column=indent_col, row=row_counter, value=state).font = Font(b=True)
-                        if plate_analysed != "other_data":
+                        ws.cell(column=indent_col, row=row_counter, value=state).font = Font(b=True)
+                        if plate_analysed != "other":
                             for calc in all_data["calculations"][plate_analysed][state]:
-                                ws_report.cell(column=indent_col + 1, row=row_counter, value=calc)
-                                ws_report.cell(column=indent_col + 2, row=row_counter,
-                                               value=all_data["calculations"][plate_analysed][state][calc])
-                        # for now, only writes z-prime
+                                ws.cell(column=indent_col + 1, row=row_counter, value=calc)
+                                ws.cell(column=indent_col + 2, row=row_counter,
+                                        value=all_data["calculations"][plate_analysed][state][calc])
+
+                        # Writes other calculations that's not avg or stdev, only writes z-prime
                         else:
                             if self.plate_report_calc_dict[plate_analysed]["calc"]["z_prime"]:
-                                ws_report.cell(column=indent_col + 1, row=row_counter,
-                                               value=all_data["calculations"][plate_analysed][state])
+                                ws.cell(column=indent_col + 1, row=row_counter,
+                                        value=all_data["calculations"][plate_analysed][state])
                         row_counter += 1
                 row_counter += 1
-        return ws_report
 
-    def _well_writer(self, ws_report, all_data, init_row):
+    def _well_writer(self, ws, all_data, init_row):
         """
-        Writes Well data from the differen analised method into the report sheet on the excel ark
-        :param ws_report: Worksheet - Report
-        :param all_data: all the data for each well, and calculations
-        :param init_row: row to start writing from in the excel file
-        :return: None
+        Writes Well data from the different analysis method into the report sheet on the excel ark
+
+        :param ws: The worksheet for the excel filere where the data is added
+        :type ws: openpyxl.worksheet.worksheet.Worksheet
+        :param all_data: A dict over all plate date. all the analysed data will be added to this dict
+        :type all_data: dict
+        :param init_row: The first row to write data to.
+        :type init_row: int
+        :return: All the wells writen in a list in the worksheet called: report
         """
         indent_col = 6
         row_counter = init_row
         added = False
 
         for plate_analysed in all_data["plates"]:
-            # Writes headline for data inserts to see where the data is coming from
-            ws_report.cell(column=indent_col, row=row_counter, value=plate_analysed).font = Font(b=True)
-            row_counter += 1
-            for counter in self.plate["well_layout"]:
-                for _ in self.plate["well_layout"][counter]:
+            if self.well_states_report_method[plate_analysed]:
+                # Writes headline for data inserts to see where the data is coming from
+                ws.cell(column=indent_col, row=row_counter, value=plate_analysed).font = Font(b=True)
+                row_counter += 1
+                for counter in self.plate["well_layout"]:
+                    for _ in self.plate["well_layout"][counter]:
 
-                    # looks through the plate layout, finds the state for each well and check if it needs to be added
-                    # based on bool-statment from well_states_report
-                    if self.well_states_report[self.plate["well_layout"][counter]["state"]] and not added:
-                        well = self.plate["well_layout"][counter]["well_id"]
-                        ws_report.cell(column=indent_col + 1, row=row_counter, value=well)
-                        ws_report.cell(column=indent_col + 2, row=row_counter,
-                                       value=all_data["plates"][plate_analysed]["wells"][well])
-                        added = True
-                        row_counter += 1
-                added = False
-            indent_col += 4
-            row_counter = init_row
+                        # looks through the plate layout, finds the state for each well and check if it needs to be added
+                        # based on bool-statment from well_states_report
+                        if self.well_states_report[self.plate["well_layout"][counter]["state"]] and not added:
+                            well = self.plate["well_layout"][counter]["well_id"]
+                            ws.cell(column=indent_col + 1, row=row_counter, value=well)
+                            ws.cell(column=indent_col + 2, row=row_counter,
+                                    value=all_data["plates"][plate_analysed]["wells"][well])
+                            added = True
+                            row_counter += 1
+                    added = False
+                indent_col += 4
+                row_counter = init_row
 
     def _report_writer_controller(self, wb, all_data):
         """
         pass the data into different modules to write data in to an excel ark
+
         :param wb: the excel ark / workbook
-        :param all_data: all the data for each well, and calculations
-        :return: None
+        :type wb: openpyxl.workbook.workbook.Workbook
+        :param all_data: A dict over all plate date. all the analysed data will be added to this dict
+        :type all_data: dict
+        :return: Create a new sheet in the workbook, called Report, and writes in wells and calculations depending on
+            the analysis.
         """
 
         init_row = 2
         ws_report = wb.create_sheet("Report")
-        ws_report = self.cal_writer(ws_report, all_data, init_row)
+        self.cal_writer(ws_report, all_data, init_row)
         self._well_writer(ws_report, all_data, init_row)
 
     def _excel_controller(self, all_data, well_row_col, pw_dict):
         """
-        controls the path for the data, to write into an excel file
-        :param all_data: all the data for each well, and calculations
-        :param well_row_col: all the headlines for each row and column
+        Controls the flow for the data, to write into an excel file
+
+        :param all_data: A dict over all plate date. all the analysed data will be added to this dict
+        :type all_data: dict
+        :param well_row_col: All the headlines for each row and column (numbers and letters for the cell values)
+        :type well_row_col: dict
         :param pw_dict: dict over each well and what state it is (empty, sample, blank....)
-        :return: None
+        :type pw_dict: dict
+        :return: A modified excel file, with all the calculations and data added, depending on the analysis method used.
         """
 
         wb = load_workbook(self.ex_file)
@@ -291,56 +342,34 @@ class BIOAnalyser:
 
         wb.save(self.ex_file)
 
-    def bio_data_controller(self, ex_file, plate_layout, all_data, well_row_col, well_type):
+    def bio_data_controller(self, ex_file, plate_layout, all_data, well_row_col, well_type, analysis, write_to_excel):
         """
-        the control modul for the bio analysing
-        :return: all_data
+        The control modul for the bio analysing
+
+        :param ex_file: The excel file
+        :type ex_file: str
+        :param plate_layout: The layout for the plate with values for each well, what state they are in
+        :type plate_layout: dict
+        :param all_data: A dict over all plate date. all the analysed data will be added to this dict
+        :type all_data: dict
+        :param well_row_col: All the headlines for each row and column (numbers and letters for the cell values)
+        :type well_row_col: dict
+        :param well_type: A dict over what state/type each well/cell is in.
+        :type well_type: dict
+        :param analysis: The analysis method
+        :type analysis: str
+        :return: A dict over all plate date. all the analysed data will be added to this dict
+        :rtype: dict
         """
         self.ex_file = ex_file
         self.plate = plate_layout
 
         all_data, pw_dict = self._data_converter(all_data, well_type)
-        self._excel_controller(all_data, well_row_col, pw_dict)
+        if write_to_excel:
+            self._excel_controller(all_data, well_row_col, pw_dict)
 
         return all_data
 
 
-
 if __name__ == "__main__":
-    file = "Data_analysis-MTase1-Epigenetic_library_HYCPK5448.xlsx"
-    folder = "C:/Users/Charlie/PycharmProjects/structure_search/Bio Data/test_single"
-    config = configparser.ConfigParser()
-    config.read("config.ini")
-    full_file = f"{folder}/{file}"
-    plate_file = config["files"]["plate_layouts"]
-    try:
-        plate_list, archive_plates_dict = dict_reader(plate_file)
-    except TypeError:
-        plate_list = []
-        archive_plates_dict = {}
-    plate = archive_plates_dict[plate_list[3]]
-    bio_plate_report_setup = {
-        "well_states_report": {'sample': True, 'blank': False, 'max': False, 'minimum': False,
-                               'positive': False, 'negative': False, 'empty': False},
-        "plate_analysis_dict": {"original": {"used": True, "methode": org,
-                                             "state_mapping": True, "heatmap": False, "Hit_Mapping": False},
-                                "normalised": {"used": True, "methode": norm,
-                                               "state_mapping": False, "heatmap": True, "Hit_Mapping": False},
-                                "pora": {"used": True, "methode": pora,
-                                         "state_mapping": False, "heatmap": False, "Hit_Mapping": True}},
-        "z_prime_calc": True,
-        "heatmap_colours": {'start': 'light red', 'mid': 'white', 'end': 'light green'},
-        "pora_threshold": {"low": {"min": -200,
-                                   "max": 0},
-                           "mid": {"min": 0,
-                                   "max": 30},
-                           "high": {"min": 120,
-                                    "max": 200},
-                           "colour": {"low": "green",
-                                      "mid": "yellow",
-                                      "high": "blue"}}
-
-    }
-
-    bio_a = BIOAnalyser(config, bio_plate_report_setup)
-    bio_a.bio_data_controller(full_file, plate)
+    ...

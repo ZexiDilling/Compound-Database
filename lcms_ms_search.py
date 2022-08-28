@@ -6,13 +6,16 @@ class MassSearching:
     def __str__(self):
         """
         looks through ms-data in a tensor form. to locate peaks in the data.
+
         :return: a list of peaks for a specific sample/compound
         """
     @staticmethod
     def aduct_search(ms_mode):
         """
         Finds aduct from the config file, and add them to a list, that is used when going over the masses found.
+
         :param ms_mode: what mode the data is in. or is being looked at.
+        :type ms_mode: str
         :return: A list of all aduct for either positive or negative ion-mode
         """
         config = configparser.ConfigParser()
@@ -53,16 +56,27 @@ class MassSearching:
         """
         M/z search function by top n m/z-values in a peak.
         A m/z value is significant if it is between the top n most intense peaks.
-        :param batch: bath/plate for the sample/compound
-        :param sample: the id for the sample/compound
-        :param mass: mass for the sample/compound
+
+        :param batch: Bath/plate for the sample/compound
+        :type batch: dict
+        :param sample: The id for the sample/compound
+        :type sample: str
+        :param mass: Mass for the sample/compound
+        :type mass: float
         :param delta_mass: +/- range for the mass search field
-        :param ms_mode: what mode the data is in. positive or negative
+        :type delta_mass: float
+        :param ms_mode: What mode the data is in. positive or negative
+        :type ms_mode: str
         :param peak_information: Information from the uv date.
-        :param ms_tensor: the raw ms-data in tensor form
-        :param mz_threshold: the minimum amount of signal before the data is being recognised as a peak.
-        :param data: all the data
-        :return: a list of peaks for ms-data
+        :type peak_information: dict
+        :param ms_tensor: The raw ms-data in tensor form
+        :type ms_tensor: dict
+        :param mz_threshold: The minimum amount of signal before the data is being recognised as a peak.
+        :type mz_threshold: float
+        :param data: All the data for all the compounds
+        :type data: dict
+        :return: A dict of peaks for ms-data
+        :rtype: dict
         """
 
         ms_mz = data[batch][sample]["MS_pos"].columns

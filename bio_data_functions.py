@@ -5,46 +5,50 @@ from openpyxl import load_workbook, Workbook
 import pandas as pd
 import re
 from matplotlib import colors
-
-from info import numb2alpha
-
-
-def ex_cell(row, col):
-    """
-    takes row value and column value and translate it to a cell value  ex from (1,1) = (A1)
-    :param row: value for the row
-    :param col: value for the column
-    :return: cell value
-    """
-    return f"{numb2alpha[col]}{row}"
+from openpyxl_fix_functions import ex_cell
 
 
 def org(all_data, well):
     """
-    original data
-    :param all_data: all the data
-    :param well: witch well is being calculated
-    :return: the original data in the same formate as the rest of the data will be in
+    Original reading data from the platereader, for bio data
+
+    :param all_data: All the data for the reading, including the state of the well following the plate layout, and the
+        results from different calculations is added as they get to it.
+    :type all_data: dict
+    :param well: Witch well is being calculated
+    :type well: str
+    :return: All the readings from the original readings from the platreader in the same formate as the future methodes
+    :rtype: dict
     """
     return all_data["plates"]["original"]["wells"][well]
 
 
 def norm(all_data, well):
     """
-    normalises the data based on the avg of the minimum
-    :param all_data: all the data
-    :param well: witch well is being calculated
-    :return: the results of the normalise calculation
+    Normalises the data based on the avg of the minimum for bio data
+
+    :param all_data: All the data for the reading, including the state of the well following the plate layout, and the
+        results from different calculations is added as they get to it.
+    :type all_data: dict
+    :param well: Witch well is being calculated
+    :type well: str
+    :return: Returns a dict over all the values after the have been normalized.
+    :rtype: dict
     """
     return all_data["plates"]["original"]["wells"][well] - all_data["calculations"]["original"]["minimum"]["avg"]
 
 
 def pora(all_data, well):
     """
-    percentage of remaining activity calculation based on the avg of the max of normalised data
-    :param all_data: all the data
-    :param well: witch well is being calculated
-    :return: the result of the PORA (percentage of remaining activity)
+    Percentage of remaining activity calculation based on the avg of the max of normalised data
+
+    :param all_data: All the data for the reading, including the state of the well following the plate layout, and the
+        results from different calculations is added as they get to it.
+    :type all_data: dict
+    :param well: Witch well is being calculated
+    :type well: str
+    :return: Returns the Percentage of remaining activity based on the normalized data.
+    :rtype: dict
     """
     return ((100 * all_data["plates"]["normalised"]["wells"][well]) /
                 all_data["calculations"]["normalised"]["max"]["avg"])
@@ -52,16 +56,33 @@ def pora(all_data, well):
 
 def pora_internal(all_data, well):
     """
-    percentage of remaining activity calculation based on the avg of the max of normalised data
-    :param all_data: all the data
-    :param well: witch well is being calculated
-    :return: the result of the PORA (percentage of remaining activity)
+    Percentage of remaining activity calculation based on the avg of the max of normalised data
+    This should properly be deleted as it is not needed...
+
+    :param all_data: All the data for the reading, including the state of the well following the plate layout, and the
+        results from different calculations is added as they get to it.
+    :type all_data: dict
+    :param well: Witch well is being calculated
+    :type well: str
+    :return: Returns the Percentage of remaining activity based on the original data.
+    :rtype: dict
     """
     return ((100 * all_data["plates"]["normalised"]["wells"][well]) /
-                all_data["calculations"]["original"]["max"]["avg"])
+            all_data["calculations"]["original"]["max"]["avg"])
 
 
-def z_prime(all_data, method):
+def z_prime_calculator(all_data, method):
+    """
+    Calculate Z-prime
+
+    :param all_data: All the data for the reading, including the state of the well following the plate layout, and the
+        results from different calculations is added as they get to it.
+    :type all_data: dict
+    :param method: The heading for the calculations that is not avg and stdev
+    :type method: str
+    :return: Returns the Z-Prime value
+    :rtype: int
+    """
     return 1 - ((3 * (all_data["calculations"][method]["max"]["stdev"] +
                 (all_data["calculations"][method]["minimum"]["stdev"]))) /
                 abs(all_data["calculations"][method]["max"]["avg"] +
@@ -71,15 +92,26 @@ def z_prime(all_data, method):
 def state_mapping(config, ws, translate_wells_to_cells, plate, init_row, free_col, temp_dict, methode):
     """
     Colour in the state of the wells and write a guide in the site to translate
-    :param config:
-    :param ws:
-    :param translate_wells_to_cells: a dict for witch cell each well is in the excel file
-    :param plate:
-    :param init_row: row to start writing to
-    :param free_col: what column should be free / the first column after the last column used for the plate data
-    :param temp_dict:
-    :param methode:
-    :return:
+    Might need to re-writes this modul, to exclude temp_dict, as it should not be needed, as all the information should
+    come from the plate layout
+
+    :param config: The config file
+    :type config: configparser.ConfigParser
+    :param ws: Witch worksheet that mappings is conected too
+    :type ws: openpyxl.worksheet.worksheet.Worksheet
+    :param translate_wells_to_cells: A dict containing what well in the plate belongs to what cell in the excel file
+    :type translate_wells_to_cells: dict
+    :param plate: Plate layout for what well have what state
+    :type plate: dict
+    :param init_row: Row to start writing to
+    :type init_row: int
+    :param free_col: What column should be free / the first column after the last column used for the plate data
+    :type free_col: int
+    :param temp_dict: The data that is being analysed for the state mapping
+    :type temp_dict: dict
+    :param methode: The Method that is being used
+    :type methode: str
+    :return: The colouring of the cells, and a reading guide for the colours, in the excel ark
     """
     # colour the wells
     init_row_start = init_row
@@ -105,11 +137,15 @@ def state_mapping(config, ws, translate_wells_to_cells, plate, init_row, free_co
 
 def heatmap(config, ws, pw_dict, translate_wells_to_cells, heatmap_colours):
     """
-    colour code samples based on values.
-    :param ws: worksheet
-    :param pw_dict: dict for each well and what state it is (sample, blank, empty....
-    :param translate_wells_to_cells: dict for each well cells value
-    :return: None
+    Colour code based on values.
+
+    :param ws: The worksheet where the heat map is placed
+    :type ws: openpyxl.worksheet.worksheet.Worksheet
+    :param pw_dict: Dict for each well and what state it is (sample, blank, empty....
+    :type pw_dict: dict
+    :param translate_wells_to_cells: Dict for each well cells value
+    :type translate_wells_to_cells: dict
+    :return: A heatmap coloured depending on the options, in the excel file.
     """
     temp_list = []
     for well in pw_dict:
@@ -136,7 +172,27 @@ def heatmap(config, ws, pw_dict, translate_wells_to_cells, heatmap_colours):
 
 
 def hit_mapping(ws, temp_dict, pora_threshold, methode, translate_wells_to_cells, free_col, init_row):
+    """
+    Colour coding a plate depending on hits (the values are selected before hand), and writes the bounderies for the
+    hits.
 
+    :param ws: The worksheet where the hit map is
+    :type ws: openpyxl.worksheet.worksheet.Worksheet
+    :param temp_dict: A dicts from all_data, that is only containing the values for the plate. These well values are
+        the basis for the hits
+    :type temp_dict: dict
+    :param pora_threshold: The hit map threshold / bounderies
+    :type pora_threshold: dict
+    :param methode: The method that is being used
+    :type methode: str
+    :param translate_wells_to_cells: A dict containing what well in the plate belongs to what cell in the excel file
+    :type translate_wells_to_cells: dict
+    :param free_col: The first free column after the plate.
+    :type free_col: int
+    :param init_row: The row where the plate can state to be writen in the excel sheet.
+    :type init_row: int
+    :return: Colouring the cells in the excel file, depending on the boundaries of the hit.
+    """
     # Colour the wells:
     for wells in translate_wells_to_cells:
         for split in pora_threshold:
@@ -162,26 +218,59 @@ def hit_mapping(ws, temp_dict, pora_threshold, methode, translate_wells_to_cells
 
 
 def well_row_col_type(plate_layout):
+    """
+    Makes two dicts. one for what type/state each well/cell is and a dict that translate each well to a column and row
+    values
+
+    :param plate_layout: The plate-layout for what state each well is in (sample, min, max...)
+    :type plate_layout: dict
+    :return: well_col_row: a dict with a list of values for rows and for columns, well_type: a dict over the
+        type/state of each well/cell
+    :rtype: dict, dict
+    """
     well_type = {}
     well_col_row = {"well_col": [], "well_row": []}
-    for counter in plate_layout["well_layout"]:
-        for keys in plate_layout["well_layout"][counter]:
+    if "well_layout" in plate_layout:
+        temp_plate_layout = plate_layout["well_layout"]
+    else:
+        temp_plate_layout = plate_layout
+
+    for counter in temp_plate_layout:
+        for keys in temp_plate_layout[counter]:
             if keys == "well_id":
-                temp_well_row = re.sub(r"\d+", "", plate_layout["well_layout"][counter][keys])
-                temp_well_col = re.sub(r"\D+", "", plate_layout["well_layout"][counter][keys])
+                temp_well_row = re.sub(r"\d+", "", temp_plate_layout[counter][keys])
+                temp_well_col = re.sub(r"\D+", "", temp_plate_layout[counter][keys])
                 if temp_well_row not in well_col_row["well_row"]:
                     well_col_row["well_row"].append(temp_well_row)
                 if temp_well_col not in well_col_row["well_col"]:
                     well_col_row["well_col"].append(temp_well_col)
 
             if keys == "state":
-                well_type.setdefault(plate_layout["well_layout"][counter]["state"], []).append(
-                    plate_layout["well_layout"][counter]["well_id"])
+                well_type.setdefault(temp_plate_layout[counter]["state"], []).append(
+                    temp_plate_layout[counter]["well_id"])
 
     return well_col_row, well_type
 
 
 def original_data_dict(file, plate_layout):
+    """
+    The original data from the plate reader, loaded in from the excel file
+
+    :param file: the excel file, with the platereaders data
+    :type file: str
+    :param plate_layout: The platelayout to tell witch cell/well is in witch state (sample, blank, empty....)
+    :type plate_layout: dict
+    :return:
+        - all_data: all_data: A dict over the original data, and what each cell/well is
+        - well_col_row: a dict with a list of values for rows and for columns,
+        - well_type: a dict over the type/state of each well/cell
+        - barcode: The barcode for the plate
+    :rtype:
+        - dict
+        - dict
+        - dict
+        - str
+    """
     well_col_row, well_type = well_row_col_type(plate_layout)
     wb = load_workbook(file)
     sheet = wb.sheetnames[0]
@@ -193,6 +282,9 @@ def original_data_dict(file, plate_layout):
     n_rows = len(well_col_row["well_row"])
     for row_index, row in enumerate(ws.values):
         for index_row, value in enumerate(row):
+
+            if value == "Date:":
+                date = row[4]
 
             if value == "Name" and row[1]:
                 barcode = row[1]
@@ -236,11 +328,7 @@ def original_data_dict(file, plate_layout):
             except KeyError:
                 all_data["plates"]["original"]["wells"][well] = 1
 
-    return all_data, well_col_row, well_type, barcode
-
-
-
-
+    return all_data, well_col_row, well_type, barcode, date
 
 
 if __name__ == "__main__":

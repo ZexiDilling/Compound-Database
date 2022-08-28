@@ -1,5 +1,5 @@
-import configparser
 from chem_operators import ChemOperators
+
 from database_handler import DataBaseFunctions
 from sdf_handler import SDFReader
 from csv_handler import CSVReader
@@ -11,59 +11,76 @@ from lc_data_handler import LCMSHandler
 
 
 class FetchData:
-    def __init__(self):
-        """
-        init
-        """
-        config = configparser.ConfigParser()
-        config.read("config.ini")
+    """
+    :param config: The config data, from the config file
+    :type config: configparser.ConfigParser
+    """
+    def __init__(self, config):
+
         self.config = config
-        self.dbf = DataBaseFunctions()
+        self.dbf = DataBaseFunctions(config)
         self.dbf.create_connection()
         self.co = ChemOperators()
-
-        self.database = "SCore.db"
-        self.compound_max = self.dbf.number_of_rows("compound_main")
+        self.database = config["Database"]["database"]
 
     def __str__(self):
         """
         Gets data from the database
+
         :return: rows of Data
+        :rtype: dict
         """
+
+    def get_number_of_rows(self, table):
+        return self.dbf.number_of_rows(table)
 
     @staticmethod
     def _list_generator(sample_amount, compound_list_temp):
         """
         Generate a random list of compounds based on amount of samples, and total list of possible compounds
+
         :param sample_amount: Amount of compounds needed
+        :type sample_amount: int
         :param compound_list_temp: List of all compounds that fits criteria
+        :type compound_list_temp: list
         :return: A list of random compounds
+        :rtype: list
         """
         compound_list_final = set()
+        if compound_list_temp:
+            while len(compound_list_final) < sample_amount:
+                if len(compound_list_temp) <= sample_amount:
+                    sample_amount = len(compound_list_temp)
+                compound_list_final = sample(compound_list_temp, sample_amount)
 
-        while len(compound_list_final) < sample_amount:
-            if len(compound_list_temp) <= sample_amount:
-                sample_amount = len(compound_list_temp)
-            compound_list_final = sample(compound_list_temp, sample_amount)
-
-        return compound_list_final
+            return compound_list_final
+        else:
+            return None
 
     @staticmethod
     def _rows_to_list(rows):
         """
         Makes a list of all compounds
+
         :param rows: All rows from the database
+        :type rows: dict
         :return: A list of all compounds
+        :rtype: list
         """
-        return [compound_id for compound_id in rows]
+
+        return [rows[data]["compound_id"] for data in rows]
 
     @staticmethod
     def _liquid_warning(rows, min_volume):
         """
         Create a list of compounds that are running low or out
+
         :param rows: Rows of data from the Database
+        :type rows: dict
         :param min_volume: Minimum volume needed per transferee. Will also determent the warning threshold
+        :type min_volume: int
         :return: A list of compounds that are under the warning threshold with amount of compound left
+        :rtype: dict
         """
         dead_volume = 1
         warning_level = min_volume * 3 + dead_volume
@@ -78,20 +95,25 @@ class FetchData:
     def _row_plate_data(rows, compound_id):
         """
         Generate dicts and list of different kind of data, based on data from the Database
+
         :param rows: Data from the Database
+        :type rows: dict
         :param compound_id: List of random compounds.
+        :type compound_id: list
         :return: Dict of data, Dict of plates, List of plates and list of plates with amount of each plate.
+        :rtype: dict, dict, list, list
         """
         row_data = {}
         mp_data = {}
         plate_set = set()
         plate_count = []
-        for compounds in rows:
-            if compounds in compound_id:
-                row_data[compounds] = [rows[compounds]["mp_barcode"], rows[compounds]["mp_well"]]
-                mp_data.setdefault(rows[compounds]["mp_barcode"], []).append([rows[compounds]["mp_well"], compounds])
-                plate_set.add(rows[compounds]["mp_barcode"])
-                plate_count.append(rows[compounds]["mp_barcode"])
+        for row_counter in rows:
+            temp_compound_id = rows[row_counter]["compound_id"]
+            if temp_compound_id in compound_id:
+                row_data[row_counter] = [rows[row_counter]["mp_barcode"], rows[row_counter]["mp_well"], rows[row_counter]["compound_id"]]
+                mp_data.setdefault(rows[row_counter]["mp_barcode"], []).append([rows[row_counter]["mp_well"], rows[row_counter]["compound_id"]])
+                plate_set.add(rows[row_counter]["mp_barcode"])
+                plate_count.append(rows[row_counter]["mp_barcode"])
 
         return row_data, mp_data, sorted(plate_set), sorted(plate_count)
 
@@ -99,18 +121,26 @@ class FetchData:
     def _plate_counter(plates):
         """
         Makes a dict of plates and how many of the same plate there is
+
         :param plates: List of all the plates
+        :type plates: list
         :return: Dicts with plates and amount of repeats
+        :rtype: dict
         """
         return dict((i, countOf(plates, i)) for i in set(plates))
 
     def _plate_mapping(self, table, plates, barcode_name):
         """
         Makes a dict of plates, with information, like where they are located
+
         :param table: The table the plates are in
+        :type table: str
         :param plates: list of all the plates without repeats
+        :type plates: list
         :param barcode_name: Headlines for the plates in the table
-        :return: A dict of plates where they are located
+        :type barcode_name: str
+        :return: A list of plates where they are located
+        :rtype: list
         """
         plate_list = []
         for plate in plates:
@@ -119,42 +149,62 @@ class FetchData:
 
         return plate_list
 
-    def sub_structure_search(self, smiles, threshold, min_volume,
+    def sub_structure_search(self, search_limiter, smiles, threshold,
                              methode="sub_structure_general", table="compound_main"):
         """
         Structure search controller. Controls witch function to use and what table to look into
+
         :param smiles: The smiles codes that needs to be compared
+        :type smiles: str
         :param threshold: The threshold for how similar the compound needs to be to the main smiles code
-        :param min_volume: Minimum volume that should be of the compound.
+        :type threshold: int
+        :param search_limiter: A dict with different values when searching for compounds
+        :type search_limiter: dict
         :param methode: What search method to use
+        :type methode: str
         :param table: What table to find the data
+        :type table: str
         :return: Rows of data from the Database with compound that fits the sub structure search criteria.
+        :rtype: dict
         """
         if table == "compound_main":
-            rows = self.dbf.return_full_table(table, min_volume)
+            rows = self.dbf.return_table_data(table, search_limiter)
         elif table == "join_main_mp":
-            rows = self.dbf.join_table_controller(min_volume)
+            rows = self.dbf.join_table_controller(search_limiter)
 
         rows = self.co.structure_search(methode, threshold, rows, smiles)
         return rows
 
-    def get_all_compounds_ids(self, min_volume, table="compound_main"):
+    def data_search(self, table, search_limiter):
         """
         Gets a list of all compounds in the database
-        :param min_volume: Minimum volume of compound that should be left
+
+        :param search_limiter: A dict over values to search for in the db
+        :type search_limiter: dict or int
         :param table: What table to look into.
+        :type table: str
         :return: rows of data from the Database
+        :rtype: dict
         """
-        if table == "compound_main":
-            rows = self.dbf.return_full_table(table, min_volume)
-        elif table == "join_main_mp":
-            rows = self.dbf.join_table_controller(min_volume)
-        elif table == "compound_mp":
-            rows = self.dbf.return_full_table(table, min_volume)
+
+        if table == "join_main_mp":
+            rows = self.dbf.join_table_controller(search_limiter)
+        else:
+            rows = self.dbf.return_table_data(table, search_limiter)
 
         return rows
 
     def list_to_rows(self, compound_list, table="compound_main"):
+        """
+        Gets a list of compounds and finds the corresponding rows in the main table.
+
+        :param compound_list: A list of the compounds
+        :type compound_list: list
+        :param table: The table to look for the data, should always be the main table
+        :type table: str
+        :return: the rows for the compounds
+        :rtype: dict
+        """
         rows = {}
         for compound_id in compound_list:
             temp_dict = self.dbf.records_to_rows(table, compound_id, "compound_id")
@@ -163,41 +213,93 @@ class FetchData:
 
         return rows
 
-    def list_limiter(self, sample_amount, table, transferee_volume, sub_search, sub_search_methode, smiles,
-                     threshold, ignore_active, plated_compounds):
+    def list_limiter(self, sample_amount, table, sub_search, sub_search_methode, smiles,
+                     threshold, ignore_active, plated_compounds, search_limiter):
         """
         Limits the list of compounds based on different criteria.
+
         :param sample_amount: how many samples is needed
+        :type sample_amount: int
         :param table: What table to find the data in
-        :param transferee_volume: volume of compound needed
+        :type table: str
         :param sub_search: True/False if it should be used or not
+        :type sub_search: bool
         :param sub_search_methode: What structure method should be used if sub_search is True
+        :type sub_search_methode: str or None
         :param smiles: The smiles code to be used for the structure search.
+        :type smiles: str or None
         :param threshold: How similar the compound needs to be to the smiles code
+        :type threshold: int or  None
         :param ignore_active: If the list needs to take into account compounds already in MotherPlates
+        :type ignore_active: bool
         :param plated_compounds: list of compounds in MotherPlates
-        :return: List of compounds, list of warnings for low volume, data for the compounds, data for the plates,
-        plate location, and volume of plates
+        :type plated_compounds: list or None
+        :param search_limiter: A dict over values to search for in the db
+        :type search_limiter: dict
+        :return: all_the_things is a list containing the following:
+            - limited_compound_list: A list of compounds
+            - warnings: A dict of warnings for compounds that are close to being empty
+            - row_data: A dict of all the data from the tables
+            - mp_data: The MotherPlate data in dict formate
+            - mp_mapping: A dict with MotherPlate information
+            - plate_count: The amount of plates
+        :rtype: list:
+            - list
+            - dict
+            - dict
+            - dict
+            - dict
+            - int
         """
+        compound_search = search_limiter[self.config["Tables"]["compound_main"]]
+
+        if compound_search["origin_id"]["use"]:
+            origin_tables = self.config["Tables"]["compound_source"]
+            rows = self.data_search(origin_tables, search_limiter[origin_tables])
+            origin_id = []
+            for row in rows:
+                origin_id.append(rows[row]["ac_id"])
+            compound_search["origin_id"]["value"] = origin_id
+
+            if not compound_search["origin_id"]["value"]:
+                return None
 
         if sub_search:
-            rows = self.sub_structure_search(smiles, threshold, transferee_volume, sub_search_methode, table)
+            rows = self.sub_structure_search(compound_search, smiles, threshold, sub_search_methode, table)
         else:
-            rows = self.get_all_compounds_ids(transferee_volume, table)
+            if table == "join_main_mp":
+                temp_table = "compound_mp"
+            else:
+                temp_table = table
+            rows = self.data_search(temp_table, compound_search)
+        if compound_search["volume"]["use"]:
+            warnings = self._liquid_warning(rows, compound_search["volume"]["value"])
+        else:
+            warnings = None
 
-        warnings = self._liquid_warning(rows, transferee_volume)
         full_compound_list = self._rows_to_list(rows)
+        print(full_compound_list)
         if not ignore_active and plated_compounds != []:
-            full_compound_list = [compounds for compounds in full_compound_list not in plated_compounds]
-        limited_compound_list = self._list_generator(sample_amount, full_compound_list)
+            try:
+                full_compound_list = [compound for compound in full_compound_list if compound not in plated_compounds]
+            except TypeError:
+                return None
+        if sample_amount:
+            limited_compound_list = self._list_generator(sample_amount, full_compound_list)
+
+        else:
+            limited_compound_list = full_compound_list
+        if not limited_compound_list:
+            return None
         if table == "compound_main":
-            return limited_compound_list, warnings
+            all_the_things = limited_compound_list, warnings
         elif table == "join_main_mp":
             row_data, mp_data, plate_set, plate_count = self._row_plate_data(rows, limited_compound_list)
             mp_mapping = self._plate_mapping("mp_plates", plate_set, "mp_barcode")
             plate_count = self._plate_counter(plate_count)
+            all_the_things = limited_compound_list, warnings, row_data, mp_data, mp_mapping, plate_count
 
-            return limited_compound_list, warnings, row_data, mp_data, mp_mapping, plate_count
+        return all_the_things
 
     def get_tubes(self):
         ...
@@ -221,16 +323,15 @@ class FetchData:
 
 
 class AddData:
-    def __init__(self):
+    def __init__(self, config):
         """
-        init
+        :param config: The config handler, with all the default information in the config file.
+        :type config: configparser.ConfigParser
         """
-        config = configparser.ConfigParser()
-        config.read("config.ini")
-        self.config = config
-        self.database = "SCore.db"
-        self.dbf = DataBaseFunctions()
-        self.sdf_r = SDFReader()
+        self.database = config["Database"]["database"]
+        self.dbf = DataBaseFunctions(config)
+        fd = FetchData(config)
+        self.sdf_r = SDFReader(config, fd, self.dbf)
         self.csv_r = CSVReader()
         self.xml_r = XMLReader()
         self.co = ChemOperators()
@@ -238,11 +339,20 @@ class AddData:
     def __str__(self):
         """
         Main controller for adding data to the database
+
         :return: Data added to the database
         """
 
     @staticmethod
     def _key_name_chang(temp_data):
+        """
+        Change the name for the keys from the files to fit with the Database naming scheme.
+
+        :param temp_data: A dict with the keys that needs to have a name change
+        :type temp_data: dict
+        :return: The dict with some of its keys having changed name
+        :rtype: dict
+        """
         temp_data = {key.replace("amount", "volume"): value for key, value in temp_data.items()}
         temp_data = {key.replace("barcode", "compound_id"): value for key, value in temp_data.items()}
         return temp_data
@@ -251,9 +361,13 @@ class AddData:
     def _popper(table, data_dict):
         """
         Remove data from a dict
+
         :param table: "Pops" different values depending on what table is being worked on.
+        :type table: str
         :param data_dict: Dict of data
+        :type data_dict: dict
         :return: A dict of data with less key-values
+        :rtype: dict
         """
         temp_dict = data_dict
         if table == "compound_mp":
@@ -274,26 +388,50 @@ class AddData:
     def _re_ordering_dict(dict_wrong_order, destination_table):
         """
         Re-arrange the order of the dict to work with the tables in the database
+
         :param dict_wrong_order: The dicts that needs to be re-arrange
+        :type dict_wrong_order: dict
         :param destination_table: What tables the data needs to fit
+        :type destination_table: str
         :return: the Dict_wrong_order in the right order to fit the Database
+        :rtype:dict
         """
         if destination_table == "compound_main":
-            key_order = ["compound_id", "smiles", "png", "volume"]
+            key_order = ["compound_id", "smiles", "png", "volume", "concentration", "ac_id", "origin_id"]
 
         if destination_table == "compound_mp":
-            key_order = ["compound_id", "DestinationBarcode", "DestinationWell", "Volume"]
+            key_order = ["Row_Counter", "DestinationBarcode", "compound_id", "DestinationWell", "Volume", "Date"]
 
         elif destination_table == "compound_dp":
-            key_order = ["compound_id", "SourceBarcode", "SourceWell", "DestinationBarcode", "DestinationWell", "Volume"]
+            key_order = ["Row_Counter", "DestinationBarcode", "compound_id", "DestinationWell", "Volume", "Date",
+                         "SourceBarcode", "SourceWell"]
 
         elif destination_table == "purity":
-            key_order = ["compound_id", "experiment", "result_max", "result_max_ion", "result_total"]
+            key_order = ["row_counter", "compound_id", "experiment", "result_max", "result_max_ion", "result_total"]
 
         return {value: dict_wrong_order[value] for value in key_order}
 
     @staticmethod
     def _exp_dict_creator(compound_data, exp_count, exp_type, responsible):
+        """
+        Generates experiments enteries.
+        Have not been tested!!!
+
+        :param compound_data: The data for the compounds that needs to be added to the table
+        :type compound_data: dict
+        :param exp_count: The experiment counter, to make sure that each experiment have its own row
+        :type exp_count: int
+        :param exp_type: What type of experiment the data is from.
+        :type exp_type: str
+        :param responsible: The person that ran the experiment
+        :type responsible: str
+        :return:
+            - experiment_dict: A dict of the experimental data
+            - exp_count: The count for the experimental data
+        :rtype:
+            - dict
+            - int
+        """
         for data in compound_data:
             time_date = compound_data[data]["time_date"][0]
             break
@@ -303,7 +441,16 @@ class AddData:
 
     @staticmethod
     def _purity_unpacker(compound_data, exp_count):
+        """
+        Unpack purity data and formate them in a way that can be added to a table
 
+        :param compound_data: The compound purity data
+        :type compound_data: dict
+        :param exp_count: The experiment counter
+        :type exp_count: int
+        :return: Purity data in a dict formate
+        :rtype: dict
+        """
         for compound in compound_data:
             temp_purity = []
             temp_ions = []
@@ -330,9 +477,12 @@ class AddData:
     def compound_main(self, file_list, table="compound_main"):
         """
         Adds data to the main table.
+
         :param file_list: list of sdf_file that contains compound and compound information
+        :type file_list: list
         :param table: table to add the data. Should always be "compound_main"
-        :return: None
+        :type table: str
+        :return: Compounds added to the main table.
         """
         for sdf_file in file_list:
             data = self.sdf_r.run(sdf_file)
@@ -348,17 +498,23 @@ class AddData:
         """
         Reads a CSV file, Adds the data to "compound_mp" Table. Update the volume of "compound_main" table
         Adds the plates to "mp_plates" with locations.
+
         :param file_list: list of files that contains csv_files with the data that needs to be added.
+        :type file_list: list
         :param file_type: What kind of CSV file the data is in.
+        :type file_type: str
         :param plate_table_name: Name of tables  for the plates, should always be "mp_plates"
+        :type plate_table_name: str
         :param destination_table: Where the compounds are going, should always be "compound_mp"
+        :type destination_table: str
         :param source_table: Where the compounds are coming from, should always be "compound_main"
+        :type source_table: str
         :param clm_id: The name of the compound-ID coloumn, should always be "compound_id"
-        :return: None
+        :type clm_id: str
+        :return: Adds MotherPlates to the database and updated the main database with new volumes
         """
         for csv_file in file_list:
             data_dict, plates_dict = self.csv_r.csv_r_controller(csv_file, file_type)
-
             for plate in plates_dict:
                 self.dbf.add_records_controller(plate_table_name, plates_dict[plate])
             for transferee in data_dict:
@@ -367,7 +523,7 @@ class AddData:
 
                 self.dbf.add_records_controller(destination_table, new_dict)
                 self.dbf.update_vol(source_table, data_dict[transferee]["Volume"],
-                                    data_dict[transferee]["compoundID"], clm_id)
+                                    data_dict[transferee]["compound_id"], clm_id)
 
     def daughter_plate(self, file_list, plate_table_name="dp_plates",
                        destination_table="compound_dp", source_table="compound_mp", clm_id="rowid"):
@@ -376,6 +532,7 @@ class AddData:
         Adds the data to "compound_dp" Table.
         Update the volume of "compound_mp" table
         Adds the plates to "dp_plates" with locations.
+
         :param file_list: with all the Echo files.
         :type file_list: list
         :param plate_table_name: Name of table for plates, should always be "dp_plates".
@@ -386,7 +543,7 @@ class AddData:
         :type source_table: str
         :param clm_id: Header for clm where row_id is located for updating the right value.
         :type clm_id: str
-        :return: None.
+        :return: Added data to the database and updates volumes.
         """
 
         data_dict, plates_dict = self.xml_r.xml_controller(file_list)
@@ -422,12 +579,18 @@ class AddData:
         Add data to the experiment table, to show when the experiment is done ??
         Add data to the purity table, to have a table over purity, with a reference to the experiment table.
         Update source table to make used plate inactive ?
+
         :param file_list: contains a list of all the compound_data files
+        :type file_list: list
         :param responsible: The responsible person / the person who have produced the data
+        :type responsible: str
         :param exp_type: What experimental type the data is from. Should always be purity
+        :type exp_type: str
         :param experiment_tabel: The table for experiments
+        :type experiment_tabel: str
         :param destination_table: The table where the data goes, should always be purity
-        :return: None
+        :type destination_table: str
+        :return: Adds purity data to the database
         """
         for compound_data in file_list:
             # Get numbers of rows from the experiment database.
@@ -447,6 +610,16 @@ class AddData:
         move_files(file_list)
 
     def auto_controller(self, folder, file_type):
+        """
+        HAVE NOT BEEN TESTED!!! IS NOT WORKING!!!!!!
+        Looks through a folder, and adds all the files to the database, depending on the file type.
+
+        :param folder:
+        :type folder: str
+        :param file_type:
+        :type file_type: str
+        :return: Updates the database with data and moves files out of pending folder! ?
+        """
         compound_list, mp_list, dp_list, purity_list, bio_list, full_file_list = file_list_distributor(folder)
         lc_h = LCMSHandler()
         if compound_list:
@@ -456,35 +629,35 @@ class AddData:
         if dp_list:
             self.daughter_plate(dp_list)
         if purity_list:
-            compound_info = lc_h.lc_controller(purity_list, self.config["MS_default"]["uv_one"],
-                                               self.config["MS_default"]["uv_wavelength"],
-                                               self.config["MS_default"]["uv_wave"],
-                                               self.config["MS_default"]["uv_threshold"],
-                                               self.config["MS_default"]["rt_solvent"],
-                                               self.config["MS_default"]["ms_delta"],
-                                               self.config["MS_default"]["ms_mode"],
-                                               self.config["MS_default"]["ms_threshold"])
+            # using default values!!
+            compound_info = lc_h.lc_controller(purity_list, False, 254, "all", 2500, 2.5, 0.25, "pos", 50000000)
             self.purity_data(compound_info)
         if bio_list:
             pass
         move_files(full_file_list)
 
-    def add_controller(self, table, folder, file_type=None):
+    def add_controller(self, table, data, file_type=None):
         """
         Main access point to adding data to the Database.
-        :param table: What table the data needs to be added to
-        :param folder: The folder with all the data files / For purity data this is compound information!!
-        :param file_type: What kind of file it is
-        :return: None
-        """
 
+        :param table: What table the data needs to be added to
+        :type table: str
+        :param data: The folder with all the data files / For purity data this is compound information!!
+        :type data: str
+        :param file_type: What kind of file it is
+        :type file_type: str
+        :return: Update the database with new values
+        """
+        table_list = ["lc_experiment", "bio_experiment", "lc_raw"]
         if table == "auto":
-            self.auto_controller(folder, file_type)
+            self.auto_controller(data, file_type)
         elif table == "purity_data":
-            self.purity_data(folder)
+            self.purity_data(data)
+        elif table in table_list:
+            self.dbf.add_records_controller(table, data)
 
         else:
-            file_list = get_file_list(folder)
+            file_list = get_file_list(data)
 
             if table == "compound_main":
                 self.compound_main(file_list)
@@ -495,6 +668,7 @@ class AddData:
             elif table == "location_table":
                 pass
             move_files(file_list)
+
 
 
 

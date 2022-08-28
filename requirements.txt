@@ -6,4 +6,3 @@ configparser
 scipy
 openpyxl
 PySimpleGUI
-matplotlib

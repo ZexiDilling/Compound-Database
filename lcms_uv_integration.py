@@ -9,6 +9,7 @@ class Integration:
         """
         A modul for integrating UV data in tensor form. to find peaks area and height, and based on that, find the
         purity of a sample/compound
+
         :return: A Datafrom with uv-peak information.
         """
     @staticmethod
@@ -23,15 +24,24 @@ class Integration:
             Linregress is utilised to compute the linear least-squares regression for two given one-dimensional
             arrays of the same length.
             The slope thresholds can be changed, see '#OBS: Can change slope threshold here'.
+
         :param batch: batch/plate the sample is from
+        :type batch: dict
         :param sample: sample/compound ID
+        :type sample: str
         :param wavelength: what wavelength the integration is working at. can be all (limited to the data)
+        :type wavelength: float
         :param uv_threshold: minimum threshold before data is being looked at. everything below is ignored
+        :type uv_threshold: float
         :param uv_tensor: a tensor for the uv data for the specific sample
+        :type uv_tensor: dict
         :param data: All data for all the samples
+        :type data: dict
         :param rt_solvent_peak: retentions time for the solvent peak, to avoid data from that peak.
+        :type rt_solvent_peak: float
         :return: df_integrate_overview is a pandas dataframe with peak list, integrals, peak start time and peak end
-        time.
+            time.
+        :rtype: pandas.core.frame.DataFrame
         """
 
         uv_tensor = np.array(uv_tensor)
@@ -151,13 +161,21 @@ class Integration:
         Calculate integrals for all samples in a plate and combine them to a list of pandas dataframes.
         One dataframe for each sample.
         A dataframe contains the following information, peak list, integrals, peak start time and peak and time.
+
         :param batch_dict: A dict with batch/plates and all samples/compounds for that one
+        :type batch_dict: dict
         :param wavelength: a list of wavelength that the different samples/compound are going to be integrated at
+        :type wavelength: list
         :param uv_threshold: minimum threshold before data is being looked at. everything below is ignored
+        :type uv_threshold: float
         :param uv_tensor: a tensor for the uv data for the specific sample
+        :type uv_tensor: dict
         :param data: All data for all the samples
+        :type data: dict
         :param solvent_peak: retentions time for the solvent peak, to avoid data from that peak.
+        :type solvent_peak: float
         :return: df_combined is a list of pandas dataframes.
+        :rtype: dict
         """
         peak_information = {}
 

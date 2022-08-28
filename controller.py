@@ -6,10 +6,12 @@ from database_controller import FetchData, AddData
 from csv_handler import CSVWriter, CSVConverter
 from excel_handler import ExcelReader
 from lc_data_handler import LCMSHandler
+import configparser
 
 
-def start_up_database(database="SCore.db"):
-    DatabaseSetUp(database)
+def start_up_database(config):
+    dbs = DatabaseSetUp(config)
+    dbs.tables()
 
 
 def amount_samples(plate_amount, samples_per_plate=384):
@@ -74,7 +76,7 @@ def mp_production(folder, mp_amount, mp_name="mp_2022", transferee_volume=9, ign
     csvw = CSVWriter()
     plated_compounds = []
     if not ignore_active:
-        plated_compounds = [compounds for compounds in fd.get_all_compounds_ids(1, "compound_mp")]
+        plated_compounds = [compounds for compounds in fd.data_search(1, "compound_mp")]
 
 
     # Gets a list of compounds, based on search criteria
@@ -146,7 +148,8 @@ def dp_production(folder, mp_amount=10, transferee_volume=4, dp_file_type="384",
 
     # generate layout from excel-file
     dp_layout, sample_amount = exr.layout_controller(dp_file_type, excel_layout_file)
-    print(mp_data)
+
+    dp_layout = plate_layout_to_well_ditc(plate_playout)
 
     # generate a dict for Daughter_Plates
     dp_dict = daughter_plate_generator(mp_data, sample_amount, dp_name, dp_layout, transferee_volume)
@@ -209,11 +212,6 @@ def main(folder):
 
 
 if __name__ == "__main__":
-    folder = "C:/Users/phch/PycharmProjects/structure_search/output_files/Pending/Compounds"
-    # folder = "test_compounds.txt"
-    path = "2022-03-03"
-    database = "SCore.db"
-    table = "dp_plates"
-    #dp_production()
-    # update_database(path, database, table)
-    mp_production_tube_to_pb()
+    config = configparser.ConfigParser()
+    config.read("config.ini")
+    start_up_database(config)
